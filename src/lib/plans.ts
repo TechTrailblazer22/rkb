@@ -108,3 +108,7 @@ export const comparison: ComparisonRow[] = [
   { label: "Homepage spotlight", values: [false, false, true] },
   { label: "Support", values: ["Email", "Phone and email", "Dedicated account manager"] },
 ];
+
+export const PLAN_LABELS: Record<PlanCode, string> = Object.fromEntries(
+  plans.map((plan) => [plan.code, plan.name]),
+) as Record<PlanCode, string>;

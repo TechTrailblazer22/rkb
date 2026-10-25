@@ -50,3 +50,6 @@ next-env.d.ts
 /.windsurf/
 /.claude/skills/
 /skills-lock.json
+
+# local development uploads, mail outbox and test artefacts (never commit)
+/.data/

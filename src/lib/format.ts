@@ -15,3 +15,14 @@ export function formatRupeesCompact(amount: number): string {
   if (amount >= 1e5) return `₹${trim(amount / 1e5)} L`;
   return formatRupees(amount);
 }
+
+const dateTime = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Kolkata",
+});
+
+/** "26 Oct 2026, 3:45 pm" in Indian time, whatever the server's timezone is. */
+export function formatDateTime(value: Date): string {
+  return dateTime.format(value);
+}

@@ -1,5 +1,7 @@
 // RKB Platform data model.
-// Phase 0: User. Phase 1: consent fields, Builder, BuilderMember. Later phases add Project, Plot, Lead...
+// Phase 0: User. Phase 1: consent, Builder, BuilderMember.
+// Phase 3: full builder profile, verification documents, audit log.
+// Later phases add Project, Plot, Lead...
 // Connection URLs are configured in prisma7.config.ts (migrations) and src/lib/db.ts (runtime).
 
 generator client {
@@ -21,6 +23,7 @@ enum Role {
 enum BuilderStatus {
   DRAFT
   SUBMITTED
+  CHANGES_REQUESTED
   VERIFIED
   REJECTED
   SUSPENDED
@@ -32,36 +35,115 @@ enum BuilderMemberRole {
   STAFF
 }
 
+enum BuilderType {
+  PROPRIETORSHIP
+  PARTNERSHIP
+  LLP
+  PRIVATE_LIMITED
+  PUBLIC_LIMITED
+  OTHER
+}
+
+// Plan the builder is interested in. Prices and limits live in code until Phase 7.
+enum PlanCode {
+  STARTER
+  GROWTH
+  PREMIER
+}
+
+enum DocumentKind {
+  PAN
+  GST
+  BUSINESS_PROOF
+  IDENTITY_PROOF
+  ADDRESS_PROOF
+  RERA
+  BANK_PROOF
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // Identity comes from Auth0 (auth0Sub). Role and builder membership are ours.
 model User {
-  id              String   @id @default(cuid())
-  auth0Sub        String   @unique
-  email           String   @unique
+  id              String    @id @default(cuid())
+  auth0Sub        String    @unique
+  email           String    @unique
   name            String?
   mobile          String?
-  role            Role     @default(BUYER)
+  role            Role      @default(BUYER)
   // DPDP consent: which version of the terms/privacy notice the user accepted, and when.
   termsVersion    String?
   termsAcceptedAt DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   builderMemberships BuilderMember[]
+  uploadedDocuments  BuilderDocument[]
 
   @@index([role])
 }
 
-// A builder / developer company. Profile fields arrive in Phase 3.
+// A builder / developer company.
 model Builder {
-  id          String        @id @default(cuid())
-  companyName String?
-  status      BuilderStatus @default(DRAFT)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id     String        @id @default(cuid())
+  status BuilderStatus @default(DRAFT)
+  // Set when the builder is verified; used by the public profile page (Phase 5).
+  slug   String?       @unique
 
-  members BuilderMember[]
+  // Company
+  companyName       String?
+  type              BuilderType?
+  yearEstablished   Int?
+  projectsCompleted Int?
+  projectsOngoing   Int?
+  about             String?
+  website           String?
+
+  // Contact
+  contactPerson String?
+  contactMobile String?
+  whatsapp      String?
+
+  // Office
+  addressLine   String?
+  city          String?
+  state         String?
+  pincode       String?
+  serviceCities String[] @default([])
+
+  // Branding. Keys into file storage; the files are public.
+  logoKey  String?
+  coverKey String?
+
+  // Identity and registration numbers
+  pan           String?
+  gstin         String?
+  reraNumber    String?
+  reraValidTill DateTime?
+
+  interestedPlan PlanCode?
+
+  // Verification workflow
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  verifiedAt   DateTime?
+  // Latest message from the reviewer, shown to the builder.
+  reviewNote   String?
+  reviewedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members   BuilderMember[]
+  documents BuilderDocument[]
 
   @@index([status])
+  @@index([pan])
+  @@index([gstin])
 }
 
 model BuilderMember {
@@ -76,4 +158,42 @@ model BuilderMember {
 
   @@unique([builderId, userId])
   @@index([userId])
+}
+
+// One current file per kind per builder. Uploading again replaces it.
+// Files are private: only the builder's members and admins can open them.
+model BuilderDocument {
+  id           String         @id @default(cuid())
+  builderId    String
+  kind         DocumentKind
+  storageKey   String
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  status       DocumentStatus @default(PENDING)
+  // Reviewer's note when a document is rejected.
+  reviewNote   String?
+  uploadedById String
+  createdAt    DateTime       @default(now())
+  reviewedAt   DateTime?
+
+  builder    Builder @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  uploadedBy User    @relation(fields: [uploadedById], references: [id])
+
+  @@unique([builderId, kind])
+  @@index([status])
+}
+
+// Who did what, and when. Never edited, only appended.
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
 }

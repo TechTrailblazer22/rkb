@@ -173,9 +173,11 @@ const buyer = {
   await page.getByRole("button", { name: "Agree and continue" }).click();
   await page.waitForURL(/\/admin$/, { timeout: 15000 }).catch(() => {});
   check("admin: Dashboard lands on /admin", pathOf(page) === "/admin", pathOf(page));
+  // The builder created above is still a draft, so the Draft card on the admin home counts it.
+  const draftCard = page.locator('a[href="/admin/builders?status=DRAFT"]');
   check(
-    "admin: console shows 1 builder created above",
-    (await page.locator("text=Builders").locator("..").getByText("1", { exact: true }).count()) > 0,
+    "admin: console counts the draft builder created above",
+    (await draftCard.getByText("1", { exact: true }).count()) > 0,
   );
   await page.goto(baseUrl + "/portal");
   check("admin: /portal redirects to /admin", pathOf(page) === "/admin", pathOf(page));

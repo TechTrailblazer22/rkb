@@ -16,12 +16,16 @@
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.mts",
+    "storage:check": "tsx scripts/check-storage.mts",
+    "mail:check": "tsx scripts/check-mail.mts"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.33.0",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
+    "cloudinary": "^2.11.0",
     "lucide-react": "^1.61.0",
     "next": "16.4.3",
     "pg": "^8.23.1",
@@ -44,6 +48,7 @@
     "prettier-plugin-tailwindcss": "^0.8.1",
     "prisma": "^7.10.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.5"
   }

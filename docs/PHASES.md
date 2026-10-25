@@ -328,3 +328,16 @@ Secrets live in Render's environment settings, never in git.
 Delivered: design tokens and UI primitives (`src/components/ui`), `ProjectCard` with sample data (`src/lib/sample-projects.ts`, clearly labelled "Sample listing"), Home, For Builders, Pricing (monthly/annual toggle driven by `src/lib/plans.ts`), a "marketplace opens soon" Projects page, draft Terms / Privacy / Disclaimer pages, `robots.txt`, `sitemap.xml`, favicon and social-share image, and a static header that learns the login state from `/api/me`.
 
 Deliberately not done yet: real search and listings (Phase 5), PWA manifest (Phase 5), JSON-LD structured data (with real content), automated accessibility audit (CI step in a later phase), and the legal text itself (needs a lawyer).
+
+## Phase 3 status (built)
+
+Delivered: full builder profile with autosave and per-field validation (PAN, GSTIN with checksum, mobile, PIN), seven document kinds with private storage and expiring links, plan interest, a status machine (draft, under review, changes requested, verified, rejected, suspended), the admin queue and review screen with per-document decisions, audit history and duplicate PAN/GSTIN warnings, emails for submit/approve/changes/reject, a seed script, and storage and mail check scripts.
+
+Differences from the original plan:
+- **No `Plan` table.** Plans stay in `src/lib/plans.ts` until Phase 7; the builder only records an interested plan.
+- **No bank account fields.** Only an optional cancelled-cheque upload; payout details belong with the payment provider in Phase 10.
+- **No map pin** in the company profile. The location picker arrives with the project wizard in Phase 4, where it is needed.
+- **Files go through our server** (not straight from the browser to Cloudinary) so every upload is checked for real file type, size and ownership first.
+- **Routes** are `/portal` (overview), `/portal/profile`, `/portal/documents`, `/portal/plan`, `/portal/review`; admin is `/admin`, `/admin/builders`, `/admin/builders/[id]`.
+
+Not verified against the real services: Cloudinary and Resend (no accounts yet). Run `npm run storage:check` and `npm run mail:check -- you@example.com` once they exist.

@@ -72,3 +72,26 @@ export async function requireUser(options: RequireUserOptions): Promise<AppUser>
   }
   return user;
 }
+
+export type ApiUserResult =
+  | { status: "ok"; user: AppUser }
+  | { status: "unauthenticated" | "unverified" | "consent-required" };
+
+/**
+ * For route handlers (uploads, downloads). Same checks as requireUser, but it reports the
+ * problem instead of redirecting, so the caller can answer 401 or 403 as JSON.
+ */
+export async function getApiUser(): Promise<ApiUserResult> {
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) return { status: "unauthenticated" };
+
+  const result = await resolveUser(
+    sessionUser.sub,
+    sessionUser.email,
+    sessionUser.email_verified,
+    sessionUser.name,
+  );
+  if (result.status !== "ok") return { status: "unverified" };
+  if (result.user.termsVersion !== TERMS_VERSION) return { status: "consent-required" };
+  return { status: "ok", user: result.user };
+}
