@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getAuth0, isAuthConfigured } from "@/lib/auth0";
+import { getAuth0, isAuthConfigured, missingAuthEnv } from "@/lib/auth0";
 import { isProtectedPath } from "@/lib/auth/paths";
+
+// Log the problem once per server process instead of on every request.
+let warnedAboutAuth = false;
 
 // Runs before every page. It mounts Auth0's /auth/login, /auth/callback and /auth/logout
 // routes, keeps the session cookie fresh, and turns anonymous visits to private areas
@@ -10,6 +13,13 @@ export async function proxy(request: NextRequest) {
   const needsAuth = isProtectedPath(pathname) || pathname.startsWith("/auth/");
 
   if (!isAuthConfigured()) {
+    // The visitor sees a generic message; the exact names go to the server log (Render > Logs).
+    if (needsAuth && !warnedAboutAuth) {
+      warnedAboutAuth = true;
+      console.error(
+        `Auth0 is not configured. Missing or empty environment variables: ${missingAuthEnv().join(", ")}`,
+      );
+    }
     // Public pages keep working before Auth0 is set up; private ones say why they cannot.
     return needsAuth
       ? new NextResponse("Authentication is not configured on this server yet.", { status: 503 })
