@@ -18,3 +18,13 @@ services:
         sync: false
       - key: DIRECT_URL
         sync: false
+      - key: AUTH0_DOMAIN
+        sync: false
+      - key: AUTH0_CLIENT_ID
+        sync: false
+      - key: AUTH0_CLIENT_SECRET
+        sync: false
+      - key: AUTH0_SECRET
+        generateValue: true # Render creates a random value once; it encrypts session cookies
+      - key: ADMIN_EMAILS
+        sync: false

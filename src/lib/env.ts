@@ -5,6 +5,8 @@ import { z } from "zod";
 const serverEnvSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   DIRECT_URL: z.string().min(1).optional(),
+  // Comma separated. A verified email on this list becomes ADMIN at login (see lib/auth/roles.ts).
+  ADMIN_EMAILS: z.string().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

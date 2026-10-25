@@ -147,7 +147,7 @@ This is the core of your request: the builder fills in everything himself. Full 
 
 **Tasks**
 1. **Prisma:** `Builder` (full fields), `BuilderDocument`, `Plan` (seeded), `AuditLog`.
-2. **Onboarding flow** at `/portal/onboarding`:
+2. **Onboarding flow** at `/start-listing` (account creation) then `/portal`:
    - Step A account (already done by Auth0) + mobile number + consent.
    - Step B business profile (company, type, year, office address, pin, about, logo/cover, contact person, WhatsApp, service cities).
    - Step C documents (PAN, GST, business proof, identity, address, RERA, bank details). PAN and GSTIN format validation with Zod.

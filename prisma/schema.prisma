@@ -1,4 +1,5 @@
-// RKB Platform data model. Phase 0 holds only User; later phases add Builder, Project, Plot, Lead...
+// RKB Platform data model.
+// Phase 0: User. Phase 1: consent fields, Builder, BuilderMember. Later phases add Project, Plot, Lead...
 // Connection URLs are configured in prisma7.config.ts (migrations) and src/lib/db.ts (runtime).
 
 generator client {
@@ -17,15 +18,62 @@ enum Role {
   ADMIN
 }
 
+enum BuilderStatus {
+  DRAFT
+  SUBMITTED
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum BuilderMemberRole {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+// Identity comes from Auth0 (auth0Sub). Role and builder membership are ours.
 model User {
-  id        String   @id @default(cuid())
-  auth0Sub  String   @unique
-  email     String   @unique
-  name      String?
-  mobile    String?
-  role      Role     @default(BUYER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(cuid())
+  auth0Sub        String   @unique
+  email           String   @unique
+  name            String?
+  mobile          String?
+  role            Role     @default(BUYER)
+  // DPDP consent: which version of the terms/privacy notice the user accepted, and when.
+  termsVersion    String?
+  termsAcceptedAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  builderMemberships BuilderMember[]
 
   @@index([role])
+}
+
+// A builder / developer company. Profile fields arrive in Phase 3.
+model Builder {
+  id          String        @id @default(cuid())
+  companyName String?
+  status      BuilderStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  members BuilderMember[]
+
+  @@index([status])
+}
+
+model BuilderMember {
+  id        String            @id @default(cuid())
+  builderId String
+  userId    String
+  role      BuilderMemberRole
+  createdAt DateTime          @default(now())
+
+  builder Builder @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([builderId, userId])
+  @@index([userId])
 }
