@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAuth0, isAuthConfigured, missingAuthEnv } from "@/lib/auth0";
 import { isProtectedPath } from "@/lib/auth/paths";
+import { absoluteRedirect } from "@/lib/http";
 
 // Log the problem once per server process instead of on every request.
 let warnedAboutAuth = false;
@@ -33,9 +34,12 @@ export async function proxy(request: NextRequest) {
 
   const session = await auth0.getSession(request);
   if (!session) {
-    const login = new URL("/auth/login", request.url);
-    login.searchParams.set("returnTo", `${pathname}${search}`);
-    return NextResponse.redirect(login);
+    // Not built from request.url: on Render that is the internal address (localhost:10000).
+    // Next requires an absolute URL in the proxy, so use the public origin.
+    return absoluteRedirect(
+      request,
+      `/auth/login?returnTo=${encodeURIComponent(`${pathname}${search}`)}`,
+    );
   }
   return response;
 }
