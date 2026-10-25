@@ -35,7 +35,7 @@ Open the service → **Environment** and set:
 | `ADMIN_EMAILS` | comma separated admin emails |
 | `AUTH0_SECRET` | created automatically by the blueprint (`generateValue`) |
 
-`APP_BASE_URL` is not needed on Render: the app uses Render's own `RENDER_EXTERNAL_URL`. If you attach a custom domain later, set `APP_BASE_URL` to it.
+Also set `APP_BASE_URL` to the public URL, for example `https://rkb-platform.onrender.com` (or your custom domain later). Login works without it because the app falls back to Render's `RENDER_EXTERNAL_URL`, but the absolute URLs in page metadata and social-share images are fixed at build time, so set it before the first deploy.
 
 Then add your Render URL to the three Auth0 URL fields (callback, logout, web origins) and **Save Changes**.
 
@@ -78,6 +78,10 @@ The sign-up form and its password rules are hosted by Auth0, so this is set in t
 
 1. Authentication → **Database** → **Username-Password-Authentication**
 2. **Authentication Methods** tab → **Password** → **Configure**
-3. Expand **Composition**, set the **Strength** and a **minimum length of 10**.
+3. Expand **Composition**, set **Minimum password length** to `10`, and click **Save**.
 
-Auth0's docs say a custom length is specified at the **Low** level (length only). Higher levels add rules such as upper and lower case letters, numbers, special characters and no more than two identical characters in a row. After saving, try signing up with a 9-character password (must be rejected) and a 10-character one (must be accepted) to confirm what your tenant enforces.
+New Auth0 database connections use the "Flexible Password Policy", whose **default minimum is 15 characters**. That is why sign-up asks for 15 until you change this field. (The older "Strength" slider levels and their per-level minimums are a legacy mechanism.) The policy needs Universal Login and no custom password-reset screen.
+
+After saving, try signing up with a 9-character password (must be rejected) and a 10-character one (must be accepted). Only edit the connection your application actually uses: Applications → RKB Platform → **Connections** tab shows which one it is. Stay on the same page for a few seconds after saving, then retry in a fresh private window.
+
+15 is Auth0's default for a reason: it matches the current NIST guidance for passwords used without a second factor, and the Auth0 free plan has no MFA. A shorter minimum is your call; if you lower it, also enable **Password dictionary** and **Block personal data** on the same Password settings page, so common passwords like `1234567890` are still refused.

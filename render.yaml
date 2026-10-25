@@ -28,3 +28,8 @@ services:
         generateValue: true # Render creates a random value once; it encrypts session cookies
       - key: ADMIN_EMAILS
         sync: false
+      # The public URL, e.g. https://rkb-platform.onrender.com (or your custom domain).
+      # Used for login redirects and for absolute URLs in page metadata and share images,
+      # which are fixed at build time. Set it before the first deploy of a new domain.
+      - key: APP_BASE_URL
+        sync: false

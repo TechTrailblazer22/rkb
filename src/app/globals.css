@@ -1,19 +1,55 @@
 @import "tailwindcss";
 
-/* Brand tokens from the builder proposal. Phase 2 builds the full design system on these. */
+/* Brand tokens from the builder proposal.
+   Text on white must use teal-700 (5:1 contrast); teal-500 is for fills and large shapes. */
 @theme {
   --color-navy-900: #0b2545;
+  --color-navy-800: #0f3157;
   --color-navy-700: #13315c;
+  --color-teal-50: #e5f6f4;
   --color-teal-500: #13a89e;
   --color-teal-700: #0b7d75;
+  --color-amber-50: #fff4dc;
   --color-amber-500: #f5a300;
+  --color-amber-700: #8a5a00;
   --color-slate-plot: #3a5778;
+  --color-surface: #f3f6fa;
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: #ffffff;
   color: var(--color-navy-900);
   font-family: var(--font-sans);
+}
+
+/* Live plot-grid artwork: a few "available" plots flip to "booked" and back. */
+@keyframes plot-book {
+  0%,
+  55%,
+  100% {
+    background-color: var(--color-teal-500);
+  }
+  65%,
+  90% {
+    background-color: var(--color-amber-500);
+  }
+}
+
+.plot-cell-live {
+  animation: plot-book 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .plot-cell-live {
+    animation: none;
+  }
 }

@@ -320,3 +320,11 @@ Secrets live in Render's environment settings, never in git.
 3. **Cloudinary** for files and **Resend** for email.
 4. Billing is manual until Phase 8.
 5. Booking stays behind a feature flag until legal sign-off.
+
+---
+
+## Phase 2 status (built)
+
+Delivered: design tokens and UI primitives (`src/components/ui`), `ProjectCard` with sample data (`src/lib/sample-projects.ts`, clearly labelled "Sample listing"), Home, For Builders, Pricing (monthly/annual toggle driven by `src/lib/plans.ts`), a "marketplace opens soon" Projects page, draft Terms / Privacy / Disclaimer pages, `robots.txt`, `sitemap.xml`, favicon and social-share image, and a static header that learns the login state from `/api/me`.
+
+Deliberately not done yet: real search and listings (Phase 5), PWA manifest (Phase 5), JSON-LD structured data (with real content), automated accessibility audit (CI step in a later phase), and the legal text itself (needs a lawyer).

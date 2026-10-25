@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { getSiteUrl } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -7,13 +8,25 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const description =
+  "A digital showroom where verified builders list projects, show live plot availability and receive buyer enquiries directly.";
+
 export const metadata: Metadata = {
+  metadataBase: getSiteUrl(),
   title: {
-    default: "RKB Platform",
+    default: "RKB Platform: your projects, in every buyer's pocket",
     template: "%s | RKB Platform",
   },
-  description:
-    "A digital showroom where builders list projects, receive verified buyer leads and take plot bookings online.",
+  description,
+  applicationName: "RKB Platform",
+  openGraph: {
+    type: "website",
+    siteName: "RKB Platform",
+    title: "RKB Platform: your projects, in every buyer's pocket",
+    description,
+    locale: "en_IN",
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

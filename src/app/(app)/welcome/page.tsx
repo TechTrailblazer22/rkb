@@ -31,8 +31,26 @@ export default async function WelcomePage({ searchParams }: PageProps<"/welcome"
             aria-describedby={showError ? "accept-error" : undefined}
           />
           <span>
-            I agree to the Terms of Use and Privacy Notice. I understand that when I send an
-            enquiry, my contact details are shared with the builder I contact.
+            I agree to the{" "}
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener"
+              className="font-semibold text-teal-700 underline"
+            >
+              Terms of Use
+            </a>{" "}
+            and{" "}
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener"
+              className="font-semibold text-teal-700 underline"
+            >
+              Privacy Notice
+            </a>
+            . I understand that when I send an enquiry, my contact details are shared with the
+            builder I contact.
           </span>
         </label>
 
