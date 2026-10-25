@@ -1,0 +1,31 @@
+// RKB Platform data model. Phase 0 holds only User; later phases add Builder, Project, Plot, Lead...
+// Connection URLs are configured in prisma7.config.ts (migrations) and src/lib/db.ts (runtime).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  BUYER
+  BUILDER_OWNER
+  BUILDER_TEAM
+  ADMIN
+}
+
+model User {
+  id        String   @id @default(cuid())
+  auth0Sub  String   @unique
+  email     String   @unique
+  name      String?
+  mobile    String?
+  role      Role     @default(BUYER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}

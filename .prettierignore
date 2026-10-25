@@ -1,0 +1,8 @@
+node_modules
+.next
+src/generated
+prisma/migrations
+package-lock.json
+.agents
+.claude
+docs

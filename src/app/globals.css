@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+/* Brand tokens from the builder proposal. Phase 2 builds the full design system on these. */
+@theme {
+  --color-navy-900: #0b2545;
+  --color-navy-700: #13315c;
+  --color-teal-500: #13a89e;
+  --color-teal-700: #0b7d75;
+  --color-amber-500: #f5a300;
+  --color-slate-plot: #3a5778;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background: #ffffff;
+  color: var(--color-navy-900);
+  font-family: var(--font-sans);
+}
