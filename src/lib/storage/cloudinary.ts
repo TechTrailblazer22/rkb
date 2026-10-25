@@ -53,8 +53,17 @@ export function createCloudinaryStorage(): StorageDriver {
     },
 
     publicUrl(key) {
-      const { publicId } = split(key);
-      // f_auto and q_auto let Cloudinary pick the smallest good format for each browser.
+      const { publicId, format } = split(key);
+      // A PDF (a brochure) must stay a PDF. Pictures get f_auto and q_auto so Cloudinary picks
+      // the smallest good format for each browser.
+      if (format === "pdf") {
+        return cloudinary.url(publicId, {
+          secure: true,
+          resource_type: "image",
+          type: "upload",
+          format: "pdf",
+        });
+      }
       return cloudinary.url(publicId, {
         secure: true,
         resource_type: "image",

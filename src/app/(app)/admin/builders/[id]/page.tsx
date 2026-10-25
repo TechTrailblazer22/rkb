@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, CheckCircle2, FileText } from "lucide-react";
+import { AdminNav } from "@/components/admin/admin-nav";
 import { BuilderStatusBadge, DocumentStatusBadge } from "@/components/portal/status-badge";
 import { buttonClass } from "@/components/ui/button";
 import { inputClass } from "@/components/ui/field";
@@ -80,12 +81,14 @@ export default async function AdminBuilderPage({
 
   return (
     <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Admin console</h1>
+      <AdminNav current="builders" />
       <div className="flex flex-wrap items-center gap-3">
         <Link href="/admin/builders" className="text-sm font-semibold text-teal-700 underline">
           Builders
         </Link>
         <span aria-hidden="true">/</span>
-        <h1 className="text-2xl font-bold">{builder.companyName ?? "(no name yet)"}</h1>
+        <h2 className="text-xl font-bold">{builder.companyName ?? "(no name yet)"}</h2>
         <BuilderStatusBadge status={builder.status} />
       </div>
 

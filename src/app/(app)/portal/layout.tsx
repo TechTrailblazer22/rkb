@@ -15,6 +15,7 @@ export default async function PortalLayout({ children }: LayoutProps<"/portal">)
       <PortalTabs
         tabs={[
           { href: "/portal", label: "Overview" },
+          { href: "/portal/projects", label: "Projects" },
           { href: "/portal/profile", label: "Company profile", done: checklist.profile.done },
           { href: "/portal/documents", label: "Documents", done: checklist.documents.done },
           { href: "/portal/plan", label: "Plan", done: checklist.plan.done },

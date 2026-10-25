@@ -40,6 +40,28 @@ export function brandingKey(builderId: string, which: "logo" | "cover", ext: str
   return `builders/${builderId}/public/${which}-${token()}.${ext}`;
 }
 
+/** Public: a project's photos, layout plan and brochure. Shown to buyers. */
+export function projectMediaKey(
+  builderId: string,
+  projectId: string,
+  kind: "photo" | "layout" | "brochure",
+  ext: string,
+): string {
+  return `builders/${builderId}/public/projects/${projectId}/${kind}-${token()}.${ext}`;
+}
+
+/** Private: the document attached to a project approval (RERA certificate and so on). */
+export function approvalDocumentKey(builderId: string, approvalKind: string, ext: string): string {
+  return `builders/${builderId}/docs/approval-${approvalKind.toLowerCase()}-${token()}.${ext}`;
+}
+
+/**
+ * A key the public file route may serve: it must sit under "<builder>/public/", with plain
+ * folder and file names (no dots-only segments, so no way to climb out of the folder).
+ */
 export function isPublicKey(key: string): boolean {
-  return /^builders\/[A-Za-z0-9]+\/public\/[A-Za-z0-9._-]+$/.test(key);
+  return (
+    /^builders\/[A-Za-z0-9]+\/public\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9][A-Za-z0-9._-]*$/.test(key) &&
+    !key.includes("..")
+  );
 }

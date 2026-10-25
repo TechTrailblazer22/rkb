@@ -1,6 +1,7 @@
 import { BadgeCheck } from "lucide-react";
-import type { BuilderStatus, DocumentStatus } from "@/generated/prisma/enums";
+import type { BuilderStatus, DocumentStatus, ProjectStatus } from "@/generated/prisma/enums";
 import { statusLabel } from "@/lib/builders/status";
+import { projectStatusLabel } from "@/lib/projects/status";
 
 const builderTone: Record<BuilderStatus, string> = {
   DRAFT: "bg-surface text-slate-700",
@@ -35,6 +36,25 @@ export function DocumentStatusBadge({ status }: { status: DocumentStatus }) {
       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone.className}`}
     >
       {tone.label}
+    </span>
+  );
+}
+
+const projectTone: Record<ProjectStatus, string> = {
+  DRAFT: "bg-surface text-slate-700",
+  SUBMITTED: "bg-amber-50 text-amber-700",
+  CHANGES_REQUESTED: "bg-amber-50 text-amber-700",
+  LIVE: "bg-teal-50 text-teal-700",
+  PAUSED: "bg-red-50 text-red-700",
+  ARCHIVED: "bg-surface text-slate-500",
+};
+
+export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${projectTone[status]}`}
+    >
+      {projectStatusLabel[status]}
     </span>
   );
 }

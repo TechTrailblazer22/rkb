@@ -149,3 +149,93 @@ export function builderRejectedMail(input: {
     }),
   };
 }
+
+// ---------- projects ----------
+
+const projectName = (name: string | null) => name?.trim() || "your project";
+
+export function projectSubmittedAdminMail(input: {
+  projectName: string;
+  companyName: string | null;
+  projectId: string;
+}): MailContent {
+  const link = url(`/admin/projects/${input.projectId}`);
+  const who = company(input.companyName);
+  return {
+    subject: `New project to review: ${input.projectName}`,
+    text: plain([`${who} submitted the project "${input.projectName}" for review.`, link]),
+    html: layout({
+      heading: "New project to review",
+      paragraphs: [`${who} submitted the project "${input.projectName}" for review.`],
+      button: { label: "Review project", href: link },
+    }),
+  };
+}
+
+export function projectApprovedMail(input: {
+  projectName: string | null;
+  projectId: string;
+}): MailContent {
+  const name = projectName(input.projectName);
+  const link = url(`/portal/projects/${input.projectId}/review`);
+  return {
+    subject: `${name} is approved`,
+    text: plain([`Good news. "${name}" has been approved and is now live on RKB Platform.`, link]),
+    html: layout({
+      heading: "Your project is approved",
+      paragraphs: [`Good news. "${name}" has been approved and is now live on RKB Platform.`],
+      button: { label: "View my project", href: link },
+    }),
+  };
+}
+
+export function projectChangesRequestedMail(input: {
+  projectName: string | null;
+  projectId: string;
+  note: string;
+}): MailContent {
+  const name = projectName(input.projectName);
+  const link = url(`/portal/projects/${input.projectId}/review`);
+  return {
+    subject: `Changes needed on ${name}`,
+    text: plain([
+      `We reviewed "${name}" and need a few changes before it can go live.`,
+      `Reviewer's note:
+${input.note}`,
+      `Update it and submit again: ${link}`,
+    ]),
+    html: layout({
+      heading: "A few changes are needed",
+      paragraphs: [
+        `We reviewed "${name}" and need a few changes before it can go live.`,
+        "Reviewer's note:",
+      ],
+      note: input.note,
+      button: { label: "Update my project", href: link },
+    }),
+  };
+}
+
+export function projectPausedMail(input: {
+  projectName: string | null;
+  projectId: string;
+  note: string;
+}): MailContent {
+  const name = projectName(input.projectName);
+  const link = url(`/portal/projects/${input.projectId}/review`);
+  return {
+    subject: `${name} has been paused`,
+    text: plain([
+      `"${name}" has been taken offline for now.`,
+      `Reason:
+${input.note}`,
+      link,
+    ]),
+    html: layout({
+      heading: "Your project has been paused",
+      paragraphs: [`"${name}" has been taken offline for now.`, "Reason:"],
+      note: input.note,
+      button: { label: "View my project", href: link },
+    }),
+  };
+}

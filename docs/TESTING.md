@@ -88,3 +88,34 @@ container for each run.
 
 What it cannot check: the real Cloudinary and Resend services. Use `npm run storage:check` and
 `npm run mail:check -- you@example.com` for those once your accounts exist.
+
+## Projects and plots end-to-end check
+
+Drives the whole project journey in a real browser: create a project, fill the wizard (with the
+autosave rules), add plots by hand, as a series, and from CSV and Excel files with deliberate
+mistakes, change statuses singly and in bulk, edit and delete, add approvals with certificates,
+upload photos, layout plan and brochure, preview, submit (blocked until the company is verified),
+admin review with a requested change, resubmit, verify and approve, then the live-project rules,
+the plan limit, privacy between builders, and finally a crawl of every link on the builder and admin
+pages plus a phone-width check.
+
+Same setup as the onboarding check above (a fresh database and a fresh folder), plus the database
+address as a fifth argument, because the test makes the builder "verified" directly in the database
+at the point it needs it:
+
+```bash
+node tests/e2e/projects.mjs "$(pwd)" http://localhost:3130 $SECRET "$DIR" "$DATABASE_URL"
+```
+
+Things automated tests do not cover: the 40-photo plan limit (it is enforced in the upload route,
+but only exercised by hand), and the real Cloudinary and Resend services.
+
+## Which test needs what
+
+| Command | Needs |
+|---|---|
+| `npm test` | nothing (database tests are skipped) |
+| `TEST_DATABASE_URL=... npm test` | a Postgres with the migrations applied |
+| `node tests/e2e/logged-in-flows.mjs ...` | a server and an empty database |
+| `node tests/e2e/builder-onboarding.mjs ...` | the same, plus local storage and the dev mail folder |
+| `node tests/e2e/projects.mjs ...` | the same, plus the database address |

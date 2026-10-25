@@ -53,3 +53,12 @@ body {
     animation: none;
   }
 }
+
+@layer base {
+  /* Screen-reader-only text is absolutely positioned. Inside a sideways-scrolling box that is
+     not itself positioned, it escapes the box and stretches the whole page on a phone.
+     Making every such box a positioning context keeps it contained. */
+  .overflow-x-auto {
+    position: relative;
+  }
+}

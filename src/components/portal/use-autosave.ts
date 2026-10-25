@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
-import type { SaveProfileResult } from "@/app/(app)/portal/actions";
+
+/** What a save function reports back: which fields were rejected, or that the whole save failed. */
+export type AutosaveResult =
+  { ok: true; savedAt: string; errors: Record<string, string> } | { ok: false; message: string };
 
 export type AutosaveState =
   | { phase: "idle" }
@@ -14,9 +17,16 @@ export type AutosaveState =
 const DEBOUNCE_MS = 700;
 
 function snapshot(form: HTMLFormElement): Record<string, string> {
+  const data = new FormData(form);
   const values: Record<string, string> = {};
-  for (const [key, value] of new FormData(form).entries()) {
-    if (typeof value === "string") values[key] = value;
+  for (const key of new Set(data.keys())) {
+    // A group of checkboxes shares one name: join the ticked ones with commas. A hidden empty
+    // input with the same name makes "nothing ticked" arrive as an empty value, so unticking the
+    // last box is saved too.
+    values[key] = data
+      .getAll(key)
+      .filter((v): v is string => typeof v === "string" && v !== "")
+      .join(",");
   }
   return values;
 }
@@ -31,7 +41,7 @@ function snapshot(form: HTMLFormElement): Record<string, string> {
  */
 export function useAutosave(
   formRef: RefObject<HTMLFormElement | null>,
-  save: (values: Record<string, string>) => Promise<SaveProfileResult>,
+  save: (values: Record<string, string>) => Promise<AutosaveResult>,
 ) {
   const router = useRouter();
   const [state, setState] = useState<AutosaveState>({ phase: "idle" });

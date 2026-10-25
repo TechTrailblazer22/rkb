@@ -2,7 +2,14 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { brandingKey, chooseStorageDriver, documentKey, isPublicKey } from "@/lib/storage";
+import {
+  approvalDocumentKey,
+  brandingKey,
+  chooseStorageDriver,
+  documentKey,
+  isPublicKey,
+  projectMediaKey,
+} from "@/lib/storage";
 import { createLocalStorage } from "@/lib/storage/local";
 import { FileNotFoundError } from "@/lib/storage/types";
 
@@ -44,6 +51,41 @@ describe("storage keys", () => {
     expect(isPublicKey("builders/b1/docs/pan-abc.pdf")).toBe(false);
     expect(isPublicKey("builders/b1/public/../docs/pan.pdf")).toBe(false);
     expect(isPublicKey("../builders/b1/public/logo.png")).toBe(false);
+  });
+});
+
+describe("project media keys", () => {
+  it("puts photos, layouts and brochures in a public project folder the file route can serve", () => {
+    for (const kind of ["photo", "layout", "brochure"] as const) {
+      const key = projectMediaKey("b1", "p1", kind, "jpg");
+      expect(key.startsWith(`builders/b1/public/projects/p1/${kind}-`)).toBe(true);
+      expect(key.endsWith(".jpg")).toBe(true);
+      expect(isPublicKey(key)).toBe(true);
+    }
+  });
+
+  it("gives every upload its own address, so a replaced file is never served from a stale cache", () => {
+    expect(projectMediaKey("b1", "p1", "photo", "jpg")).not.toBe(
+      projectMediaKey("b1", "p1", "photo", "jpg"),
+    );
+  });
+
+  it("keeps approval documents private", () => {
+    const key = approvalDocumentKey("b1", "RERA", "pdf");
+    expect(key).toMatch(/^builders\/b1\/docs\/approval-rera-[0-9a-f]{12}\.pdf$/);
+    expect(isPublicKey(key)).toBe(false);
+  });
+
+  it.each([
+    "builders/b1/public/projects/../docs/pan.pdf",
+    "builders/b1/public/projects/./x.jpg",
+    "builders/b1/public//x.jpg",
+    "builders/b1/public/projects/p1/.hidden",
+    "builders/b1/docs/projects/p1/photo.jpg",
+    "builders/b1/public",
+    "builders/b1/public/",
+  ])("does not serve %s", (key) => {
+    expect(isPublicKey(key)).toBe(false);
   });
 });
 

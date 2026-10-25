@@ -8,7 +8,9 @@ const mocks = vi.hoisted(() => ({
   upload_stream: vi.fn(),
   destroy: vi.fn(),
   private_download_url: vi.fn(() => "https://api.cloudinary.com/signed"),
-  url: vi.fn(() => "https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/x"),
+  url: vi.fn(
+    (..._args: unknown[]) => "https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/x",
+  ),
 }));
 
 vi.mock("cloudinary", () => ({
@@ -93,6 +95,22 @@ describe("cloudinary driver", () => {
     expect(options.type).toBe("authenticated");
     expect(options.expires_at).toBe(
       Math.floor(new Date("2026-01-01T00:00:00Z").getTime() / 1000) + 300,
+    );
+  });
+
+  it("keeps a public PDF brochure a PDF, but lets pictures be optimised", () => {
+    const storage = createCloudinaryStorage();
+    storage.publicUrl("builders/b1/public/projects/p1/brochure-abc.pdf");
+    expect(mocks.url).toHaveBeenLastCalledWith(
+      "builders/b1/public/projects/p1/brochure-abc",
+      expect.objectContaining({ format: "pdf", type: "upload" }),
+    );
+    expect(mocks.url.mock.calls[0][1]).not.toHaveProperty("fetch_format");
+
+    storage.publicUrl("builders/b1/public/projects/p1/photo-abc.jpg");
+    expect(mocks.url).toHaveBeenLastCalledWith(
+      "builders/b1/public/projects/p1/photo-abc",
+      expect.objectContaining({ fetch_format: "auto", quality: "auto" }),
     );
   });
 

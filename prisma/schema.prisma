@@ -1,6 +1,7 @@
 // RKB Platform data model.
 // Phase 0: User. Phase 1: consent, Builder, BuilderMember.
 // Phase 3: full builder profile, verification documents, audit log.
+// Phase 4: projects, approvals, media, plots and the plot status log.
 // Later phases add Project, Plot, Lead...
 // Connection URLs are configured in prisma7.config.ts (migrations) and src/lib/db.ts (runtime).
 
@@ -140,6 +141,7 @@ model Builder {
 
   members   BuilderMember[]
   documents BuilderDocument[]
+  projects  Project[]
 
   @@index([status])
   @@index([pan])
@@ -196,4 +198,228 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------------------
+// Phase 4: projects and plot inventory
+// ---------------------------------------------------------------------------------------
+
+enum ProjectType {
+  PLOTTED
+  FARM_HOUSE
+  RESIDENTIAL
+  COMMERCIAL
+  MIXED_USE
+}
+
+enum ProjectStage {
+  PRE_LAUNCH
+  UNDER_CONSTRUCTION
+  READY_TO_MOVE
+}
+
+enum ProjectStatus {
+  DRAFT
+  SUBMITTED
+  CHANGES_REQUESTED
+  LIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum ApprovalKind {
+  RERA
+  TNCP
+  MUNICIPAL
+  BANK_LOAN
+  OTHER
+}
+
+enum MediaKind {
+  PHOTO
+  LAYOUT
+  BROCHURE
+}
+
+// HELD is reserved for online booking (a plot reserved while a token payment completes).
+enum PlotStatus {
+  AVAILABLE
+  HELD
+  BOOKED
+  SOLD
+}
+
+enum PlotFacing {
+  NORTH
+  SOUTH
+  EAST
+  WEST
+  NORTH_EAST
+  NORTH_WEST
+  SOUTH_EAST
+  SOUTH_WEST
+}
+
+// One project listing. Every field except name, type and stage is optional so the builder can
+// save a draft at any point; the checklist in code decides what is needed to submit.
+model Project {
+  id        String        @id @default(cuid())
+  builderId String
+  // Set when the project first goes live; used by the public page (Phase 5).
+  slug      String?       @unique
+  status    ProjectStatus @default(DRAFT)
+
+  // Basics
+  name        String
+  type        ProjectType
+  stage       ProjectStage @default(PRE_LAUNCH)
+  city        String?
+  locality    String?
+  addressLine String?
+  mapUrl      String?
+  description String?
+
+  // Size and layout
+  acres           Float?
+  totalPlots      Int?
+  openAreaPercent Int?
+  phasesCount     Int?
+
+  // Legal
+  landUse     String?
+  titleStatus String?
+  bankLoans   String[] @default([])
+
+  // Timeline
+  startDate       DateTime?
+  completionDate  DateTime?
+  percentComplete Int?
+
+  // Pricing, in rupees
+  pricePerSqft      Int?
+  budgetFrom        Int?
+  budgetTo          Int?
+  tokenAmount       Int?
+  paymentPlan       String?
+  additionalCharges String?
+  offers            String?
+
+  amenities String[] @default([])
+  videoUrl  String?
+
+  // Contact
+  contactName       String?
+  contactMobile     String?
+  whatsapp          String?
+  visitingHours     String?
+  hideContactNumber Boolean @default(false)
+
+  // Review workflow
+  submittedAt  DateTime?
+  publishedAt  DateTime?
+  reviewedAt   DateTime?
+  reviewNote   String?
+  reviewedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  builder   Builder           @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  approvals ProjectApproval[]
+  media     ProjectMedia[]
+  plots     Plot[]
+
+  @@index([builderId, status])
+  @@index([status])
+}
+
+// RERA, TNCP, municipal and bank-loan approvals. At most one of each kind per project.
+// The optional document is private, like builder verification documents.
+model ProjectApproval {
+  id           String       @id @default(cuid())
+  projectId    String
+  kind         ApprovalKind
+  number       String?
+  validFrom    DateTime?
+  validTill    DateTime?
+  storageKey   String?
+  originalName String?
+  mimeType     String?
+  sizeBytes    Int?
+  // Set by an admin after checking the number and document.
+  verified     Boolean      @default(false)
+  verifiedAt   DateTime?
+  reviewNote   String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, kind])
+}
+
+// Photos, the layout plan and the brochure. These are shown to buyers, so the files are public.
+model ProjectMedia {
+  id           String    @id @default(cuid())
+  projectId    String
+  kind         MediaKind
+  storageKey   String
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  tag          String?
+  isCover      Boolean   @default(false)
+  uploadedById String
+  createdAt    DateTime  @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, kind])
+}
+
+model Plot {
+  id          String      @id @default(cuid())
+  projectId   String
+  // What the builder calls it, for example "A-12".
+  number      String
+  // number with digit runs zero-padded, so "A-2" sorts before "A-10".
+  sortKey     String
+  sizeSqft    Int
+  dimensions  String?
+  facing      PlotFacing?
+  isCorner    Boolean     @default(false)
+  roadWidthFt Int?
+  ratePerSqft Int?
+  price       Int?
+  status      PlotStatus  @default(AVAILABLE)
+  phase       String?
+  // For built projects: "2 BHK", "Shop", ...
+  unitType    String?
+  builtUpSqft Int?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, number])
+  @@index([projectId, sortKey])
+  @@index([projectId, status])
+}
+
+// Every status change of a plot, kept even if the plot is later deleted. Settles disputes
+// such as "who marked this plot sold, and when".
+model PlotStatusLog {
+  id         String      @id @default(cuid())
+  plotId     String
+  plotNumber String
+  projectId  String
+  fromStatus PlotStatus?
+  toStatus   PlotStatus
+  actorId    String?
+  // "manual", "bulk", "import" or "series".
+  via        String
+  createdAt  DateTime    @default(now())
+
+  @@index([plotId])
+  @@index([projectId, createdAt])
 }

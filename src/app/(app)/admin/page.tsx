@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BuilderStatusBadge } from "@/components/portal/status-badge";
+import { AdminNav } from "@/components/admin/admin-nav";
 import { buttonClass } from "@/components/ui/button";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
@@ -20,9 +21,10 @@ export default async function AdminPage() {
   await requireUser({ returnTo: "/admin", roles: ["ADMIN"] });
 
   const db = getDb();
-  const [users, grouped] = await Promise.all([
+  const [users, grouped, projectsWaiting] = await Promise.all([
     db.user.count(),
     db.builder.groupBy({ by: ["status"], _count: { _all: true } }),
+    db.project.count({ where: { status: "SUBMITTED" } }),
   ]);
   const counts = new Map(grouped.map((row) => [row.status, row._count._all]));
   const waiting = counts.get("SUBMITTED") ?? 0;
@@ -30,6 +32,7 @@ export default async function AdminPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Admin console</h1>
+      <AdminNav current="overview" />
 
       <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-500/40 bg-amber-50 p-6">
         <div>
@@ -40,6 +43,18 @@ export default async function AdminPage() {
         </div>
         <Link href="/admin/builders?status=SUBMITTED" className={buttonClass("primary", "lg")}>
           Open the queue
+        </Link>
+      </section>
+
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-teal-500/40 bg-teal-50 p-6">
+        <div>
+          <p className="text-3xl font-extrabold">{projectsWaiting}</p>
+          <p className="text-sm text-slate-700">
+            {projectsWaiting === 1 ? "project is" : "projects are"} waiting for review
+          </p>
+        </div>
+        <Link href="/admin/projects?status=SUBMITTED" className={buttonClass("primary", "lg")}>
+          Open the project queue
         </Link>
       </section>
 

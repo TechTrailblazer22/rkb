@@ -341,3 +341,22 @@ Differences from the original plan:
 - **Routes** are `/portal` (overview), `/portal/profile`, `/portal/documents`, `/portal/plan`, `/portal/review`; admin is `/admin`, `/admin/builders`, `/admin/builders/[id]`.
 
 Not verified against the real services: Cloudinary and Resend (no accounts yet). Run `npm run storage:check` and `npm run mail:check -- you@example.com` once they exist.
+
+## Phase 4 status (built)
+
+Delivered: projects with a 10-step autosaving wizard (basics, size and layout, plots, legal and approvals, timeline, pricing, amenities, media, contact, review), a completeness score with required and recommended items, plot inventory (add, edit, delete, a numbered-series generator, bulk status changes, an inline status dropdown, filtering, paging, and Excel/CSV import with a row-by-row preview), approvals with private certificates, photos with a cover plus a layout plan and brochure, a YouTube link, a buyer's-view preview, a project status machine (draft, under review, changes requested, live, paused, archived), an admin project queue and review screen with per-approval verification and duplicate-RERA warnings, emails for submitted, approved, changes requested and paused, and a plot status log.
+
+Differences from the original plan:
+- **No `ProjectSection` table.** Autosave writes straight into the project's own columns, which are all optional, so a draft can be saved at any point.
+- **No `Amenity` or `ProjectAmenity` tables.** Amenities are a list of codes in `src/lib/projects/amenities.ts`.
+- **No `Phase` table.** A plot has a free-text phase or block label.
+- **No separate UNDER_REVIEW status.** SUBMITTED means under review.
+- **Material edits on a live project** are locked (name, location, land use, title, bank loans, approvals) instead of triggering an automatic re-review. "Edit and resubmit" takes the listing offline until it is approved again. Everything else (photos, prices, plots, description) can be changed while live.
+- **Template is CSV**, which opens in Excel. Uploads accept `.xlsx` and `.csv`.
+- **Plan limits** (projects, photos, video) are read from one place (`src/lib/entitlements.ts`) and use the Growth limits for everyone until billing exists (Phase 7).
+
+Deferred, on purpose:
+- **Map pin picker and locality autocomplete.** The wizard has a map-link field, and city and locality are free text. A real picker needs map tiles and a locality list; revisit in Phase 5, where search needs consistent localities.
+- **Drag-to-reorder photos.** Photos can be given a cover and removed.
+- **Duplicate project and copy-from-previous.**
+- **Automatic pausing of expired approvals.** An expired approval already blocks submitting and is flagged; the nightly pause arrives with the scheduled jobs in Phase 6.

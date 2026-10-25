@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminNav } from "@/components/admin/admin-nav";
 import { BuilderStatusBadge } from "@/components/portal/status-badge";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
@@ -30,12 +31,14 @@ export default async function AdminBuildersPage({ searchParams }: PageProps<"/ad
 
   return (
     <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Admin console</h1>
+      <AdminNav current="builders" />
       <div className="flex flex-wrap items-center gap-3">
         <Link href="/admin" className="text-sm font-semibold text-teal-700 underline">
           Admin
         </Link>
         <span aria-hidden="true">/</span>
-        <h1 className="text-2xl font-bold">Builders</h1>
+        <h2 className="text-xl font-bold">Builders</h2>
       </div>
 
       <nav aria-label="Filter by status" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
