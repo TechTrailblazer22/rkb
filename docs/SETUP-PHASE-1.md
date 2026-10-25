@@ -58,3 +58,26 @@ Then add your Render URL to the three Auth0 URL fields (callback, logout, web or
 - **Admins are bootstrapped from `ADMIN_EMAILS`** and only ever promoted by it. Removing an email from the variable does not demote an existing admin. An admin screen for that comes with the admin console.
 - **Terms version.** `TERMS_VERSION` in `src/lib/legal.ts` is recorded with each consent. Change it when the terms change, and users are asked to accept again.
 - **Roles live in our database, not in Auth0**, so nothing needs configuring in Auth0 for roles.
+
+## 6. Email verification without a second login
+
+**What the app does (already built).** After sign-up the user sees "Please verify your email". The main button, "I've verified my email, continue", signs them in silently using the Auth0 session from sign-up and takes them to their dashboard. They are not asked for the password again. "Use a different account" logs out instead.
+
+**For people who click the link in the email** (Auth0's "email verified" page has a button back to the app), set the application's login URI. This only works on the live HTTPS site; Auth0 does not accept `localhost` here.
+
+1. Auth0 → Applications → RKB Platform → Settings → **Application Login URI**
+2. Set it to `https://<your-service>.onrender.com/login-continue` and **Save Changes**.
+
+`/login-continue` starts a clean login that returns to `/dashboard`. If the user opened the email on another device or browser, there is no session to reuse and they log in once; Auth0 cannot avoid that.
+
+Custom "Redirect To" URLs in the verification email template are not available on tenants created on or after 5 May 2026, and template editing needs your own email provider, so this setting is the supported route.
+
+## 7. Password rules (minimum length)
+
+The sign-up form and its password rules are hosted by Auth0, so this is set in the dashboard, not in code.
+
+1. Authentication → **Database** → **Username-Password-Authentication**
+2. **Authentication Methods** tab → **Password** → **Configure**
+3. Expand **Composition**, set the **Strength** and a **minimum length of 10**.
+
+Auth0's docs say a custom length is specified at the **Low** level (length only). Higher levels add rules such as upper and lower case letters, numbers, special characters and no more than two identical characters in a row. After saving, try signing up with a 9-character password (must be rejected) and a 10-character one (must be accepted) to confirm what your tenant enforces.
