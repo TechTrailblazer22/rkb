@@ -8,7 +8,27 @@ import "dotenv/config";
 import { v2 as cloudinary } from "cloudinary";
 import { getStorage } from "../src/lib/storage";
 
-const PDF = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n");
+/** A valid one-page PDF. Cloudinary checks PDFs properly, so a stub file would be refused. */
+function onePagePdf(): Buffer {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>",
+  ];
+  const NL = String.fromCharCode(10);
+  let out = "%PDF-1.4" + NL;
+  const offsets = objects.map((body, i) => {
+    const at = out.length;
+    out += `${i + 1} 0 obj${NL}${body}${NL}endobj${NL}`;
+    return at;
+  });
+  const xref = out.length;
+  out += `xref${NL}0 ${objects.length + 1}${NL}0000000000 65535 f ${NL}`;
+  for (const at of offsets) out += `${String(at).padStart(10, "0")} 00000 n ${NL}`;
+  out += `trailer${NL}<< /Size ${objects.length + 1} /Root 1 0 R >>${NL}startxref${NL}${xref}${NL}%%EOF${NL}`;
+  return Buffer.from(out);
+}
+const PDF = onePagePdf();
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",
@@ -70,7 +90,11 @@ try {
     );
   }
 } catch (error) {
-  report(false, "storage operation threw", error instanceof Error ? error.message : String(error));
+  report(
+    false,
+    "storage operation threw",
+    error instanceof Error ? error.message : JSON.stringify(error),
+  );
 } finally {
   await storage.remove(privateKey, "private").catch(() => {});
   await storage.remove(publicKey, "public").catch(() => {});

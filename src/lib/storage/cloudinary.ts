@@ -19,6 +19,13 @@ function split(key: string): { publicId: string; format: string } {
 const deliveryType = (visibility: Visibility) =>
   visibility === "private" ? "authenticated" : "upload";
 
+/** The SDK rejects with a plain { message, http_code } object, which hides the reason in logs. */
+function asError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  const { message, http_code: status } = (error ?? {}) as { message?: string; http_code?: number };
+  return new Error(`Cloudinary: ${message ?? "unknown error"}${status ? ` (HTTP ${status})` : ""}`);
+}
+
 export function createCloudinaryStorage(): StorageDriver {
   cloudinary.config({ secure: true });
 
@@ -36,7 +43,7 @@ export function createCloudinaryStorage(): StorageDriver {
             overwrite: false,
             unique_filename: false,
           },
-          (error) => (error ? reject(error) : resolve()),
+          (error) => (error ? reject(asError(error)) : resolve()),
         );
         stream.end(data);
       });
