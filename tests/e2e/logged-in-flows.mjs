@@ -71,13 +71,18 @@ const buyer = {
   const { context, page } = await newPage(buyer);
   await page.goto(baseUrl + "/");
   await page
-    .getByRole("link", { name: "Dashboard" })
+    .getByRole("link", { name: "My account" })
     .first()
     .waitFor({ timeout: 10000 })
     .catch(() => {});
   check(
-    "buyer: header shows Dashboard",
-    await page.getByRole("link", { name: "Dashboard" }).first().isVisible(),
+    "buyer: header shows My account",
+    await page.getByRole("link", { name: "My account" }).first().isVisible(),
+  );
+  check(
+    "buyer: header shows Saved and no builder portal link",
+    (await page.getByRole("link", { name: "Saved", exact: true }).count()) > 0 &&
+      (await page.getByRole("link", { name: "Builder portal" }).count()) === 0,
   );
   check(
     "buyer: header shows Log out",
@@ -88,12 +93,12 @@ const buyer = {
     (await page.getByRole("link", { name: "Log in" }).count()) === 0,
   );
 
-  await page.getByRole("link", { name: "Dashboard" }).first().click();
+  await page.getByRole("link", { name: "My account" }).first().click();
   await page.waitForURL(/\/welcome/, { timeout: 15000 }).catch(() => {});
   check("buyer: first visit goes to terms page", pathOf(page).startsWith("/welcome"), pathOf(page));
   check(
-    "buyer: terms page keeps returnTo=/dashboard",
-    pathOf(page).includes("returnTo=%2Fdashboard"),
+    "buyer: terms page keeps returnTo=/account",
+    pathOf(page).includes("returnTo=%2Faccount"),
     pathOf(page),
   );
 
@@ -110,11 +115,7 @@ const buyer = {
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Agree and continue" }).click();
   await page.waitForURL(/\/account$/, { timeout: 15000 }).catch(() => {});
-  check(
-    "buyer: after accepting, Dashboard lands on /account",
-    pathOf(page) === "/account",
-    pathOf(page),
-  );
+  check("buyer: after accepting, lands on /account", pathOf(page) === "/account", pathOf(page));
   check(
     "buyer: account page greets by name",
     (await page.getByText("Welcome, Asha Buyer").count()) > 0,

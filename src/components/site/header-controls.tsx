@@ -6,13 +6,23 @@ import { Menu, X } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { LIST_PROJECT_HREF, LOGIN_HREF, NAV_LINKS } from "@/components/site/nav-links";
 
-type AuthState = { authenticated: boolean; emailVerified: boolean; name: string | null };
+type Role = "BUYER" | "BUILDER_OWNER" | "BUILDER_TEAM" | "ADMIN";
+type AuthState = {
+  authenticated: boolean;
+  emailVerified: boolean;
+  name: string | null;
+  role?: Role | null;
+};
 
 const LOGGED_OUT: AuthState = { authenticated: false, emailVerified: false, name: null };
 
-// Login buttons and the mobile menu. The page itself stays static; the logged-in state is
-// fetched after load. Until it arrives the buttons are invisible but keep their space, so
+// Login buttons and the mobile menu. The page itself stays static; who is logged in, and as what,
+// is fetched after load. Until it arrives the buttons are invisible but keep their space, so
 // logged-in visitors never see a flash of "Log in" and nothing jumps.
+//
+// What is shown depends on the account: a buyer sees Saved and My account, a builder sees the
+// builder portal, the admin sees the console. (This only changes the links; what each account may
+// open is decided on the server.)
 export function HeaderControls() {
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [open, setOpen] = useState(false);
@@ -33,6 +43,13 @@ export function HeaderControls() {
   const ready = auth !== null;
   const loggedIn = auth?.authenticated ?? false;
   const needsVerification = loggedIn && !auth?.emailVerified;
+  const role = auth?.role ?? null;
+
+  const logout = (
+    <a href="/auth/logout" className={buttonClass("onDark")}>
+      Log out
+    </a>
+  );
 
   const actions = needsVerification ? (
     // Signed in at Auth0 but our app will not open anything until the email is verified.
@@ -40,27 +57,45 @@ export function HeaderControls() {
       <Link href="/account-problem?reason=email-unverified" className={buttonClass("accent")}>
         Verify your email
       </Link>
-      <a href="/auth/logout" className={buttonClass("onDark")}>
-        Log out
-      </a>
+      {logout}
     </>
-  ) : loggedIn ? (
+  ) : loggedIn && role === "BUYER" ? (
     <>
       <Link href="/account/shortlist" className={buttonClass("onDark")}>
         Saved
       </Link>
+      <Link href="/account" className={buttonClass("accent")}>
+        My account
+      </Link>
+      {logout}
+    </>
+  ) : loggedIn && (role === "BUILDER_OWNER" || role === "BUILDER_TEAM") ? (
+    <>
+      <Link href="/portal" className={buttonClass("accent")}>
+        Builder portal
+      </Link>
+      {logout}
+    </>
+  ) : loggedIn && role === "ADMIN" ? (
+    <>
+      <Link href="/admin" className={buttonClass("accent")}>
+        Admin console
+      </Link>
+      {logout}
+    </>
+  ) : loggedIn ? (
+    // Logged in, but the role could not be read: /dashboard works it out on the server.
+    <>
       <Link href="/dashboard" className={buttonClass("accent")}>
         Dashboard
       </Link>
-      <a href="/auth/logout" className={buttonClass("onDark")}>
-        Log out
-      </a>
+      {logout}
     </>
   ) : (
     <>
-      <a href={LOGIN_HREF} className={buttonClass("onDark")}>
+      <Link href={LOGIN_HREF} className={buttonClass("onDark")}>
         Log in
-      </a>
+      </Link>
       <a href={LIST_PROJECT_HREF} className={buttonClass("accent")}>
         List your project
       </a>

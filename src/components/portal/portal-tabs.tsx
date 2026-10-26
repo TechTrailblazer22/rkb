@@ -6,16 +6,25 @@ import { Check } from "lucide-react";
 
 export type PortalTab = { href: string; label: string; done?: boolean };
 
-// Steps of the application, with a tick once each is complete. Scrolls sideways on phones.
-export function PortalTabs({ tabs }: { tabs: PortalTab[] }) {
+// A row of tabs for an area (the builder portal, the buyer account), with a tick on the ones that
+// are complete. `root` is the area's home: its tab is active only on that exact page. Scrolls
+// sideways on phones.
+export function PortalTabs({
+  tabs,
+  root = "/portal",
+  label = "Application steps",
+}: {
+  tabs: PortalTab[];
+  root?: string;
+  label?: string;
+}) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Application steps" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <nav aria-label={label} className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <ul className="flex min-w-max gap-1 border-b border-slate-200">
         {tabs.map((tab) => {
-          const active =
-            tab.href === "/portal" ? pathname === "/portal" : pathname.startsWith(tab.href);
+          const active = tab.href === root ? pathname === root : pathname.startsWith(tab.href);
           return (
             <li key={tab.href}>
               <Link

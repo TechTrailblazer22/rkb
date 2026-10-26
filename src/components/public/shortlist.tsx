@@ -14,6 +14,8 @@ import { Heart } from "lucide-react";
 type ShortlistState = {
   /** null until the first answer arrives. */
   authenticated: boolean | null;
+  /** False for builders and the admin: saving projects is a buyer feature, so no hearts. */
+  canSave: boolean;
   saved: Set<string>;
   toggle: (projectId: string) => Promise<void>;
   busy: Set<string>;
@@ -27,15 +29,19 @@ const Context = createContext<ShortlistState | null>(null);
  */
 export function ShortlistProvider({ children }: { children: ReactNode }) {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const [canSave, setCanSave] = useState(true);
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/shortlist", { cache: "no-store", signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : { authenticated: false, ids: [] }))
-      .then((data: { authenticated: boolean; ids: string[] }) => {
+      .then((response) =>
+        response.ok ? response.json() : { authenticated: false, canSave: true, ids: [] },
+      )
+      .then((data: { authenticated: boolean; canSave?: boolean; ids: string[] }) => {
         setAuthenticated(data.authenticated);
+        setCanSave(data.canSave !== false);
         setSaved(new Set(data.ids));
       })
       .catch((error: unknown) => {
@@ -93,8 +99,8 @@ export function ShortlistProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ authenticated, saved, toggle, busy }),
-    [authenticated, saved, toggle, busy],
+    () => ({ authenticated, canSave, saved, toggle, busy }),
+    [authenticated, canSave, saved, toggle, busy],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
@@ -109,7 +115,8 @@ export function ShortlistHeart({
   variant?: "overlay" | "button";
 }) {
   const state = useContext(Context);
-  if (!state) return null;
+  // Nothing until we know who is looking; and nothing for accounts that cannot save.
+  if (!state || state.authenticated === null || !state.canSave) return null;
   const isSaved = state.saved.has(projectId);
 
   const common = {

@@ -147,3 +147,15 @@ Build and start again (and use a new database) for every run: cached pages are s
 
 Notes for writing browser checks here: do not rely on Playwright's `networkidle` alone. Next keeps
 prefetching other pages in the background, so the network is often busy for seconds.
+
+## Buyer / builder / admin check
+
+`tests/e2e/roles.mjs` checks the login page and what each kind of account sees: where each door
+leads for each role, the headers, the buyer and builder areas, hearts, the save API, and the
+"wrong door" notices. Sessions are signed with the Auth0 testing helper, so no real login is used.
+Run it exactly like the marketplace check (fresh empty database, build, start with
+`ADMIN_EMAILS=admin@test.example`), then:
+
+```bash
+node tests/e2e/roles.mjs "$(pwd)" http://localhost:3130 $SECRET "$DATABASE_URL"
+```

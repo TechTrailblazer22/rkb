@@ -11,7 +11,7 @@ import { listShortlistIds } from "@/lib/shortlist/service";
 export const metadata = { title: "Saved projects", robots: { index: false } };
 
 export default async function ShortlistPage() {
-  const user = await requireUser({ returnTo: "/account/shortlist" });
+  const user = await requireUser({ returnTo: "/account/shortlist", roles: ["BUYER"] });
   const db = getDb();
   // Projects that have since gone offline are left out here but stay saved, so they come back
   // if the builder puts them live again.

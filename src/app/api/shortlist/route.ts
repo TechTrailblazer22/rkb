@@ -16,8 +16,14 @@ const json = (body: Record<string, unknown>, status = 200) =>
  */
 export async function GET() {
   const auth = await getApiUser();
-  if (auth.status !== "ok") return json({ authenticated: false, ids: [] });
-  return json({ authenticated: true, ids: await listShortlistIds(getDb(), auth.user.id) });
+  if (auth.status !== "ok") return json({ authenticated: false, canSave: true, ids: [] });
+  // Saving projects is a buyer feature. Builders and the admin are logged in but get no hearts.
+  if (auth.user.role !== "BUYER") return json({ authenticated: true, canSave: false, ids: [] });
+  return json({
+    authenticated: true,
+    canSave: true,
+    ids: await listShortlistIds(getDb(), auth.user.id),
+  });
 }
 
 const body = z.object({ projectId: z.string().min(1).max(60), saved: z.boolean() });
@@ -31,6 +37,9 @@ export async function POST(request: Request) {
   const auth = await getApiUser();
   if (auth.status === "unauthenticated") return json({ error: "Please log in." }, 401);
   if (auth.status !== "ok") return json({ error: "Please finish signing in first." }, 403);
+  if (auth.user.role !== "BUYER") {
+    return json({ error: "Only buyer accounts can save projects." }, 403);
+  }
 
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return json({ error: "Invalid request." }, 400);

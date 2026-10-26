@@ -34,7 +34,17 @@ export default async function StartListingPage() {
         ))}
       </ol>
 
-      <form action={createBuilderAccount} className="mt-8">
+      <p
+        data-testid="role-switch-warning"
+        className="mt-6 rounded-lg bg-amber-50 p-4 text-sm text-slate-700"
+      >
+        <span className="font-semibold">This turns your account into a builder account.</span> The
+        buyer pages (your account page and saved projects) are not available to builder accounts.
+        The projects you saved are kept, but they are not shown while this is a builder account. To
+        keep shopping as a buyer too, use a different email address for your builder account.
+      </p>
+
+      <form action={createBuilderAccount} className="mt-6">
         <button type="submit" className={buttonClass("primary")}>
           Create my builder account
         </button>

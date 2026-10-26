@@ -34,6 +34,28 @@ const resolveUser = cache(
     ),
 );
 
+/**
+ * The role of whoever is logged in, for things that only change what is shown (the header, a
+ * greeting). Null when logged out, when the email is not verified yet, or if the lookup fails: a
+ * broken lookup must never break a page. Access control uses requireUser(), not this.
+ */
+export async function getSessionRole(): Promise<Role | null> {
+  try {
+    const sessionUser = await getSessionUser();
+    if (!sessionUser) return null;
+    const result = await resolveUser(
+      sessionUser.sub,
+      sessionUser.email,
+      sessionUser.email_verified,
+      sessionUser.name,
+    );
+    return result.status === "ok" ? result.user.role : null;
+  } catch (error) {
+    console.error("Could not read the role for the current session", error);
+    return null;
+  }
+}
+
 type RequireUserOptions = {
   /** Where to come back to after login or after accepting the terms. */
   returnTo: string;

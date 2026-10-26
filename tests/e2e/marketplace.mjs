@@ -957,7 +957,7 @@ check(
   "the account page links to it",
   (await (async () => {
     await bp.goto(baseUrl + "/account");
-    return bp.getByRole("link", { name: "Saved projects" }).count();
+    return bp.getByRole("link", { name: "Saved projects", exact: true }).count();
   })()) === 1,
 );
 
