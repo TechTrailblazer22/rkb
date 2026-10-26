@@ -5,24 +5,40 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { LIST_PROJECT_HREF, LOGIN_HREF, NAV_LINKS } from "@/components/site/nav-links";
+import { ModeSwitch } from "@/components/site/mode-switch";
+import { MODE_COOKIE, type Mode } from "@/lib/auth/mode";
 
-type Role = "BUYER" | "BUILDER_OWNER" | "BUILDER_TEAM" | "ADMIN";
 type AuthState = {
   authenticated: boolean;
   emailVerified: boolean;
   name: string | null;
-  role?: Role | null;
+  /** The account in use, and whether a builder account exists (so a switch is possible). */
+  mode?: Mode | null;
+  canBuild?: boolean;
 };
 
 const LOGGED_OUT: AuthState = { authenticated: false, emailVerified: false, name: null };
 
-// Login buttons and the mobile menu. The page itself stays static; who is logged in, and as what,
-// is fetched after load. Until it arrives the buttons are invisible but keep their space, so
-// logged-in visitors never see a flash of "Log in" and nothing jumps.
+/** Tells the page's CSS which account is in use (see data-for in globals.css). */
+function showMode(auth: AuthState) {
+  const root = document.documentElement;
+  if (auth.authenticated && auth.mode) {
+    root.setAttribute("data-mode", auth.mode);
+  } else {
+    // Not logged in: forget a leftover mode (a session that expired), so nothing stays hidden.
+    root.removeAttribute("data-mode");
+    document.cookie = `${MODE_COOKIE}=; Max-Age=0; Path=/`;
+  }
+}
+
+// Login buttons and the mobile menu. The page itself stays static; who is logged in, and which of
+// their accounts they are using, is fetched after load. Until it arrives the buttons are invisible
+// but keep their space, so logged-in visitors never see a flash of "Log in" and nothing jumps.
 //
-// What is shown depends on the account: a buyer sees Saved and My account, a builder sees the
-// builder portal, the admin sees the console. (This only changes the links; what each account may
-// open is decided on the server.)
+// What is shown depends on the account in use, and nothing from the other side is: a buyer sees
+// Saved and My account, a builder sees the builder portal, the admin sees the console. Buyers and
+// builders each get a button to switch to their other account without logging out. (This only
+// changes the links; what each account may open is decided on the server.)
 export function HeaderControls() {
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [open, setOpen] = useState(false);
@@ -31,7 +47,11 @@ export function HeaderControls() {
     const controller = new AbortController();
     fetch("/api/me", { cache: "no-store", signal: controller.signal })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: AuthState | null) => setAuth(data ?? LOGGED_OUT))
+      .then((data: AuthState | null) => {
+        const state = data ?? LOGGED_OUT;
+        showMode(state);
+        setAuth(state);
+      })
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
           setAuth(LOGGED_OUT);
@@ -43,13 +63,17 @@ export function HeaderControls() {
   const ready = auth !== null;
   const loggedIn = auth?.authenticated ?? false;
   const needsVerification = loggedIn && !auth?.emailVerified;
-  const role = auth?.role ?? null;
+  const mode = auth?.mode ?? null;
 
   const logout = (
-    <a href="/auth/logout" className={buttonClass("onDark")}>
+    // /logout forgets the account in use, then hands over to Auth0.
+    <a href="/logout" className={buttonClass("onDark")}>
       Log out
     </a>
   );
+  const switcher = mode ? (
+    <ModeSwitch mode={mode} canBuild={auth?.canBuild ?? false} className={buttonClass("onDark")} />
+  ) : null;
 
   const actions = needsVerification ? (
     // Signed in at Auth0 but our app will not open anything until the email is verified.
@@ -59,7 +83,7 @@ export function HeaderControls() {
       </Link>
       {logout}
     </>
-  ) : loggedIn && role === "BUYER" ? (
+  ) : loggedIn && mode === "buyer" ? (
     <>
       <Link href="/account/shortlist" className={buttonClass("onDark")}>
         Saved
@@ -67,16 +91,18 @@ export function HeaderControls() {
       <Link href="/account" className={buttonClass("accent")}>
         My account
       </Link>
+      {switcher}
       {logout}
     </>
-  ) : loggedIn && (role === "BUILDER_OWNER" || role === "BUILDER_TEAM") ? (
+  ) : loggedIn && mode === "builder" ? (
     <>
       <Link href="/portal" className={buttonClass("accent")}>
         Builder portal
       </Link>
+      {switcher}
       {logout}
     </>
-  ) : loggedIn && role === "ADMIN" ? (
+  ) : loggedIn && mode === "admin" ? (
     <>
       <Link href="/admin" className={buttonClass("accent")}>
         Admin console
@@ -84,7 +110,7 @@ export function HeaderControls() {
       {logout}
     </>
   ) : loggedIn ? (
-    // Logged in, but the role could not be read: /dashboard works it out on the server.
+    // Logged in, but the account could not be read: /dashboard works it out on the server.
     <>
       <Link href="/dashboard" className={buttonClass("accent")}>
         Dashboard
@@ -135,6 +161,7 @@ export function HeaderControls() {
               <Link
                 key={link.href}
                 href={link.href}
+                data-for={link.for}
                 onClick={() => setOpen(false)}
                 className="rounded-lg px-3 py-3 text-base font-medium text-white hover:bg-white/10"
               >

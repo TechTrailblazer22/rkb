@@ -1,7 +1,9 @@
+// `for` says which side a link belongs to. A logged-in buyer is not shown builder links and a
+// logged-in builder is not shown buyer links (see data-for in globals.css); visitors see them all.
 export const NAV_LINKS = [
-  { href: "/projects", label: "Projects" },
-  { href: "/for-builders", label: "For builders" },
-  { href: "/pricing", label: "Pricing" },
+  { href: "/projects", label: "Projects", for: "buyer" },
+  { href: "/for-builders", label: "For builders", for: "builder" },
+  { href: "/pricing", label: "Pricing", for: "builder" },
 ] as const;
 
 // Our own page where people choose to log in as a buyer or as a builder. It is an ordinary page,

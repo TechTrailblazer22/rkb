@@ -1,18 +1,21 @@
 import Link from "next/link";
-import type { Role } from "@/generated/prisma/enums";
-import { getSessionRole, getSessionUser } from "@/lib/auth/session";
+import type { Mode } from "@/lib/auth/mode";
+import { getSessionAccount, getSessionUser } from "@/lib/auth/session";
+import { ModeSwitch } from "@/components/site/mode-switch";
+import { ModeSync } from "@/components/site/mode-sync";
 import { buttonClass } from "@/components/ui/button";
 
 // Everything under this group is per-user, so it is always rendered per request.
 export const dynamic = "force-dynamic";
 
-// The header inside the logged-in areas says which kind of account this is and offers the links
-// that matter for it. It only changes what is shown; each page still checks the role itself.
+// The header inside the logged-in areas says which account is in use and offers the links that
+// belong to it, and nothing from the other side: a buyer is not shown builder links and a builder is
+// not shown buyer links. It only changes what is shown; each page still checks the role itself.
 const SHELLS: Record<
-  Role,
+  Mode,
   { label: string; badge: string; links: { href: string; label: string }[] }
 > = {
-  BUYER: {
+  buyer: {
     label: "Buyer account",
     badge: "bg-teal-500/20 text-teal-50",
     links: [
@@ -21,23 +24,12 @@ const SHELLS: Record<
       { href: "/account", label: "My account" },
     ],
   },
-  BUILDER_OWNER: {
+  builder: {
     label: "Builder account",
     badge: "bg-amber-500/20 text-amber-100",
-    links: [
-      { href: "/portal", label: "Portal" },
-      { href: "/projects", label: "Marketplace" },
-    ],
+    links: [{ href: "/portal", label: "Portal" }],
   },
-  BUILDER_TEAM: {
-    label: "Builder account",
-    badge: "bg-amber-500/20 text-amber-100",
-    links: [
-      { href: "/portal", label: "Portal" },
-      { href: "/projects", label: "Marketplace" },
-    ],
-  },
-  ADMIN: {
+  admin: {
     label: "Admin",
     badge: "bg-white/15 text-white",
     links: [
@@ -49,13 +41,14 @@ const SHELLS: Record<
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await getSessionUser();
-  const role = user ? await getSessionRole() : null;
-  const shell = role ? SHELLS[role] : null;
+  const account = user ? await getSessionAccount() : null;
+  const shell = account ? SHELLS[account.mode] : null;
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-slate-50">
+      {account && <ModeSync mode={account.mode} />}
       <header className="bg-navy-900 text-white">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-3">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <Link href="/" className="flex items-center gap-2 font-bold">
               <span className="rounded-lg bg-teal-500 px-2 py-1 text-sm">RKB</span>
@@ -70,7 +63,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
               </span>
             )}
           </div>
-          <nav aria-label="Account" className="flex items-center gap-3 text-sm">
+          <nav aria-label="Account" className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
             {user ? (
               <>
                 {shell ? (
@@ -84,11 +77,18 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
                     Dashboard
                   </Link>
                 )}
+                {account && (
+                  <ModeSwitch
+                    mode={account.mode}
+                    canBuild={account.canBuild}
+                    className={`${buttonClass("onDark")} !px-3 !py-1.5 !text-xs`}
+                  />
+                )}
                 <span className="hidden max-w-40 truncate text-white/70 lg:inline">
                   {user.name ?? user.email}
                 </span>
-                {/* plain <a>: the Auth0 SDK needs a full navigation, not client routing */}
-                <a href="/auth/logout" className={buttonClass("secondary")}>
+                {/* plain <a>: /logout clears the remembered account, then hands over to Auth0 */}
+                <a href="/logout" className={buttonClass("secondary")}>
                   Log out
                 </a>
               </>

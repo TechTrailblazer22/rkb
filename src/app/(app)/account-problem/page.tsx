@@ -48,7 +48,7 @@ export default async function AccountProblemPage({ searchParams }: PageProps<"/a
             I&apos;ve verified my email, continue
           </a>
         )}
-        <a href="/auth/logout" className={buttonClass(unverified ? "secondary" : "primary")}>
+        <a href="/logout" className={buttonClass(unverified ? "secondary" : "primary")}>
           {unverified ? "Use a different account" : "Log out and try again"}
         </a>
       </div>

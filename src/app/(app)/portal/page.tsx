@@ -4,7 +4,6 @@ import { ProgressRing } from "@/components/ui/progress-ring";
 import { buttonClass } from "@/components/ui/button";
 import { requireBuilderContext } from "@/lib/builders/context";
 import { documentLabel } from "@/lib/builders/documents";
-import { LANDING_NOTICES, parseNotice } from "@/lib/auth/intent";
 
 export const metadata = { title: "Builder portal" };
 
@@ -39,27 +38,13 @@ function Row({
   );
 }
 
-export default async function PortalPage({ searchParams }: PageProps<"/portal">) {
+export default async function PortalPage() {
   const { builder, documents, checklist } = await requireBuilderContext("/portal");
-  const notice = parseNotice((await searchParams).notice);
   const { status } = builder;
   const rejectedDocuments = documents.filter((d) => d.status === "REJECTED");
 
   return (
     <div className="space-y-6">
-      {notice && (
-        <section
-          role="status"
-          data-testid="login-notice"
-          className="flex gap-4 rounded-2xl border border-amber-500/50 bg-amber-50 p-5"
-        >
-          <AlertTriangle className="size-6 shrink-0 text-amber-700" aria-hidden="true" />
-          <div>
-            <h2 className="font-bold">{LANDING_NOTICES[notice].title}</h2>
-            <p className="mt-1 text-sm text-slate-700">{LANDING_NOTICES[notice].body}</p>
-          </div>
-        </section>
-      )}
       {status === "VERIFIED" && (
         <section className="flex gap-4 rounded-2xl border border-teal-500/40 bg-teal-50 p-6">
           <BadgeCheck className="size-8 shrink-0 text-teal-700" aria-hidden="true" />

@@ -1,4 +1,4 @@
-// End-to-end check of the buyer / builder / admin experience, in a real browser, against a real
+// End-to-end check of buyer and builder accounts on one email, in a real browser, against a real
 // Postgres. See docs/LOGIN-ROLES.md and docs/TESTING.md.
 //
 //   node tests/e2e/roles.mjs <projectDir> <baseUrl> <AUTH0_SECRET> <DATABASE_URL>
@@ -24,12 +24,13 @@ const check = (name, ok, detail = "") => {
 const section = (title) => console.log(`\n--- ${title}`);
 
 const people = {
-  buyer: {
-    sub: "auth0|r-buyer",
-    email: "rbuyer@test.example",
+  dual: {
+    sub: "auth0|r-dual",
+    email: "dual@test.example",
     email_verified: true,
-    name: "Asha Buyer",
+    name: "Asha Both",
   },
+  solo: { sub: "auth0|r-solo", email: "solo@test.example", email_verified: true, name: "Sam Solo" },
   admin: {
     sub: "auth0|r-admin",
     email: "admin@test.example",
@@ -65,11 +66,14 @@ const sql = async (text, params = []) => (await db.query(text, params)).rows;
 const browser = await chromium.launch({ channel: "msedge" });
 const DESKTOP = { width: 1280, height: 900 };
 const PHONE = { width: 390, height: 844 };
-async function open(user, viewport = DESKTOP) {
+async function open(user, viewport = DESKTOP, extraCookies = []) {
   const context = await browser.newContext({ viewport });
-  if (user) await context.addCookies([await cookieFor(user)]);
+  const cookies = [...extraCookies];
+  if (user) cookies.unshift(await cookieFor(user));
+  if (cookies.length) await context.addCookies(cookies);
   return { context, page: await context.newPage() };
 }
+const modeCookie = (value) => ({ name: "rkb_mode", value, domain: "localhost", path: "/" });
 const settle = async (page) => {
   await page.waitForLoadState("load").catch(() => {});
   await page.waitForLoadState("networkidle", { timeout: 2500 }).catch(() => {});
@@ -79,16 +83,10 @@ const where = (page) => new URL(page.url()).pathname + new URL(page.url()).searc
 const text = async (page) => (await page.locator("body").innerText()).replace(/\s+/g, " ");
 const overflows = (page) =>
   page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+const htmlMode = (page) => page.evaluate(() => document.documentElement.dataset.mode ?? null);
+const cookieValue = async (context, name) =>
+  (await context.cookies()).find((c) => c.name === name)?.value ?? null;
 
-/** Opens a page and waits until the header has learnt who is logged in. */
-async function visit(page, route) {
-  const me = page
-    .waitForResponse((r) => r.url().includes("/api/me"), { timeout: 10000 })
-    .catch(() => null);
-  await page.goto(baseUrl + route);
-  await me;
-  await settle(page);
-}
 async function acceptTermsIfAsked(page) {
   if (new URL(page.url()).pathname === "/welcome") {
     await page.getByRole("checkbox").check();
@@ -97,15 +95,35 @@ async function acceptTermsIfAsked(page) {
     await settle(page);
   }
 }
-/** Goes to a route as a logged-in person, accepting the terms the first time, and reports where it ended up. */
+/** Opens a route as a logged-in person (accepting the terms the first time) and reports where it ended up. */
 async function go(page, route) {
   await page.goto(baseUrl + route);
   await acceptTermsIfAsked(page);
   await settle(page);
+  // After accepting the terms the browser may still be following /dashboard or /switch to the
+  // page they lead to: wait until the address has stopped changing.
+  let last = "";
+  let steady = 0;
+  for (let i = 0; i < 40 && steady < 4; i++) {
+    const now = where(page);
+    steady = now === last ? steady + 1 : 0;
+    last = now;
+    await page.waitForTimeout(150);
+  }
+  await settle(page);
+  return where(page);
+}
+/** Opens a page and waits until the header has learnt who is logged in. */
+async function visit(page, route) {
+  const me = page
+    .waitForResponse((r) => r.url().includes("/api/me"), { timeout: 10000 })
+    .catch(() => null);
+  await page.goto(baseUrl + route);
+  await me;
+  await settle(page);
   return where(page);
 }
 const hearts = (page) => page.locator('[data-testid="shortlist-heart"]');
-/** Opens the marketplace list and waits for the shortlist provider to have answered. */
 async function visitList(page) {
   const answered = page
     .waitForResponse((r) => r.url().includes("/api/shortlist"), { timeout: 10000 })
@@ -114,6 +132,13 @@ async function visitList(page) {
   await answered;
   await settle(page);
 }
+const header = (page) => page.locator("header");
+const headerLink = (page, name, exact = false) => header(page).getByRole("link", { name, exact });
+const navLink = (page, name) =>
+  page.locator('header nav[aria-label="Main"]').getByRole("link", { name });
+const footerLink = (page, name) => page.locator("footer").getByRole("link", { name });
+const switchButton = (page) => page.getByTestId("mode-switch");
+const jsonHeaders = { "Content-Type": "application/json" };
 
 // ---------------------------------------------------------------------------------------
 // something public to look at
@@ -129,13 +154,13 @@ await db.query(
   [projectId, builderRow],
 );
 await db.query(
-  `INSERT INTO "Plot"(id,"projectId",number,"sortKey",\"sizeSqft\",price,status,\"updatedAt\")
+  `INSERT INTO "Plot"(id,"projectId",number,"sortKey","sizeSqft",price,status,"updatedAt")
    SELECT gen_random_uuid()::text,$1,'A-'||g,'a-'||lpad(g::text,8,'0'),1000,1850000,'AVAILABLE',now() FROM generate_series(1,5) g`,
   [projectId],
 );
 
 // =======================================================================================
-section("1. The login page offers two doors");
+section("1. The login page, and what a visitor who is not logged in sees");
 
 const anon = await open(null);
 const response = await anon.page.goto(baseUrl + "/login");
@@ -145,7 +170,7 @@ const doors = await anon.page
   .locator("[data-door]")
   .evaluateAll((els) => els.map((e) => e.dataset.door));
 check(
-  "it has exactly two options: buyer and builder",
+  "it offers exactly two options: buyer and builder",
   JSON.stringify(doors) === JSON.stringify(["buyer", "builder"]),
   JSON.stringify(doors),
 );
@@ -156,366 +181,527 @@ const hrefs = async (door) =>
 const buyerLinks = await hrefs("buyer");
 const builderLinks = await hrefs("builder");
 check(
-  "the buyer option logs in and returns through /dashboard?as=buyer",
+  "the buyer option returns through /dashboard?as=buyer",
   buyerLinks.includes("/auth/login?returnTo=%2Fdashboard%3Fas%3Dbuyer"),
   JSON.stringify(buyerLinks),
 );
 check(
-  "the builder option logs in and returns through /dashboard?as=builder",
+  "the builder option returns through /dashboard?as=builder",
   builderLinks.includes("/auth/login?returnTo=%2Fdashboard%3Fas%3Dbuilder"),
   JSON.stringify(builderLinks),
 );
 check(
-  "each option also offers to create an account (Auth0's sign-up screen)",
+  "each option also offers sign-up",
   buyerLinks.some((h) => h.includes("screen_hint=signup") && h.includes("as%3Dbuyer")) &&
     builderLinks.some((h) => h.includes("screen_hint=signup") && h.includes("as%3Dbuilder")),
 );
 check(
-  "the buyer card says what a buyer gets",
-  (await anon.page.locator('[data-door="buyer"]').innerText()).includes("Save projects"),
+  "the page says one email can be used for both",
+  (await text(anon.page)).includes("use the same email for both"),
 );
 check(
-  "the builder card says what a builder gets",
-  (await anon.page.locator('[data-door="builder"]').innerText()).includes("No commission"),
-);
-check(
-  "the page is not offered to search engines",
+  "it is not offered to search engines or in the sitemap",
   (await anon.page.locator('meta[name="robots"]').getAttribute("content"))?.includes("noindex") ===
-    true,
+    true && !(await (await fetch(baseUrl + "/sitemap.xml")).text()).includes("/login"),
 );
-const sitemap = await (await fetch(baseUrl + "/sitemap.xml")).text();
-check("and it is not in the sitemap", !sitemap.includes("/login"));
-
-await anon.page.goto(baseUrl + "/login?role=builder");
-await settle(anon.page);
-check(
-  "?role=builder highlights the builder card",
-  (await anon.page.locator('[data-door="builder"]').getAttribute("class"))?.includes(
-    "border-teal-500",
-  ) === true &&
-    (await anon.page.locator('[data-door="buyer"]').getAttribute("class"))?.includes(
-      "border-teal-500",
-    ) === false,
-);
-await anon.page.goto(baseUrl + "/login?role=%3Cscript%3E");
-await settle(anon.page);
-check("a junk ?role= is ignored", (await anon.page.locator("[data-door].ring-2").count()) === 0);
 
 await visit(anon.page, "/");
-const headerLogin = anon.page.getByRole("link", { name: "Log in" }).first();
 check(
-  "the header's Log in goes to /login (not straight to Auth0)",
-  (await headerLogin.getAttribute("href")) === "/login",
+  "a visitor sees the buyer side: Projects in the header",
+  await navLink(anon.page, "Projects").isVisible(),
 );
 check(
-  "List your project still goes straight to sign-up as a builder",
-  (
-    (await anon.page
-      .getByRole("link", { name: "List your project" })
-      .first()
-      .getAttribute("href")) ?? ""
-  ).includes("start-listing"),
+  "and the builder side: For builders and Pricing",
+  (await navLink(anon.page, "For builders").isVisible()) &&
+    (await navLink(anon.page, "Pricing").isVisible()),
 );
-await headerLogin.click();
-await anon.page.waitForURL(/\/login$/);
 check(
-  "clicking Log in opens the two-option page",
-  (await text(anon.page)).includes("I'm a buyer") &&
-    (await text(anon.page)).includes("I'm a builder"),
+  "and the builder band on the home page",
+  await anon.page.locator('section[data-for="builder"]').first().isVisible(),
 );
+check(
+  "Log in goes to /login",
+  (await headerLink(anon.page, "Log in").first().getAttribute("href")) === "/login",
+);
+check(
+  "a visitor can open the builder pages",
+  (await fetch(baseUrl + "/for-builders")).status === 200 &&
+    (await fetch(baseUrl + "/pricing")).status === 200,
+);
+await visitList(anon.page);
+check(
+  "a visitor sees hearts (pressing one asks them to log in)",
+  (await hearts(anon.page).count()) > 0,
+);
+check("a visitor has no mode on the page", (await htmlMode(anon.page)) === null);
 
 const keepAlive = await fetch(baseUrl + "/login-continue", { redirect: "manual" });
 check(
-  "Auth0's /login-continue link (after email verification) still works unchanged",
+  "Auth0's /login-continue link still works unchanged",
   keepAlive.status === 307 &&
     (keepAlive.headers.get("location") ?? "").includes("/auth/login?returnTo=%2Fdashboard"),
-  `${keepAlive.status} ${keepAlive.headers.get("location")}`,
 );
 
-await visitList(anon.page);
+// a leftover cookie from a session that has ended must not hide anything
+const stale = await open(null, DESKTOP, [modeCookie("builder")]);
+const staleLanding = await visit(stale.page, "/");
 check(
-  "logged-out visitors see hearts (pressing one asks them to log in)",
-  (await hearts(anon.page).count()) > 0,
+  "a leftover builder cookie without a session does not send a visitor away",
+  staleLanding === "/",
+  staleLanding,
 );
+check(
+  "and the header forgets it",
+  (await htmlMode(stale.page)) === null && (await cookieValue(stale.context, "rkb_mode")) === null,
+);
+check("so the buyer side is still shown", await navLink(stale.page, "Projects").isVisible());
+await stale.context.close();
 
-const phone = await open(null, PHONE);
-await phone.page.goto(baseUrl + "/login");
-await settle(phone.page);
-check("the login page fits a phone screen", !(await overflows(phone.page)));
-check("and both options are on it", (await phone.page.locator("[data-door]").count()) === 2);
-await phone.context.close();
+const phoneAnon = await open(null, PHONE);
+await phoneAnon.page.goto(baseUrl + "/login");
+await settle(phoneAnon.page);
+check("the login page fits a phone screen", !(await overflows(phoneAnon.page)));
+await phoneAnon.context.close();
 
 // =======================================================================================
-section("2. A buyer");
+section("2. Someone who is only a buyer");
 
-const buyer = await open(people.buyer);
-const bp = buyer.page;
+const solo = await open(people.solo);
+const sp = solo.page;
 check(
-  "buyer door: /dashboard?as=buyer goes to the buyer home",
-  (await go(bp, "/dashboard?as=buyer")) === "/account",
-  where(bp),
+  "the buyer door puts them in the buyer account",
+  (await go(sp, "/dashboard?as=buyer")) === "/account",
+  where(sp),
 );
+check("and remembers it", (await cookieValue(solo.context, "rkb_mode")) === "buyer");
 check(
-  "no door: /dashboard goes to the buyer home too",
-  (await go(bp, "/dashboard")) === "/account",
+  "the builder door offers to create a builder account",
+  (await go(sp, "/dashboard?as=builder")) === "/start-listing",
 );
-check("an unknown door is ignored", (await go(bp, "/dashboard?as=admin")) === "/account");
-check("so is script in the door", (await go(bp, "/dashboard?as=%3Cscript%3E")) === "/account");
+check("and does not change the mode", (await cookieValue(solo.context, "rkb_mode")) === "buyer");
+check("an unknown door is ignored", (await go(sp, "/dashboard?as=admin")) === "/account");
 check(
-  "a second ?as= cannot sneak past: first value wins",
-  (await go(bp, "/dashboard?as=buyer&as=builder")) === "/account",
+  "so is a repeated one: the first wins",
+  (await go(sp, "/dashboard?as=buyer&as=builder")) === "/account",
 );
 
-await visit(bp, "/account");
+await visit(sp, "/account");
+check("the page knows it is the buyer's", (await htmlMode(sp)) === "buyer");
 check(
   "buyer pages say Buyer account",
-  (await bp.getByTestId("account-kind").innerText()) === "Buyer account",
+  (await sp.getByTestId("account-kind").innerText()) === "Buyer account",
 );
 check(
-  "buyer pages have their own tabs",
+  "the buyer area has its own tabs",
   (
-    await bp.getByRole("navigation", { name: "Your account" }).getByRole("link").allInnerTexts()
+    await sp.getByRole("navigation", { name: "Your account" }).getByRole("link").allInnerTexts()
   ).join("|") === "Overview|Saved projects",
 );
-check("and a greeting by name", (await text(bp)).includes("Welcome, Asha Buyer"));
 check(
-  "the buyer home has no builder tools",
-  (await bp.getByRole("link", { name: "Company profile" }).count()) === 0,
+  "the buyer's bar offers to create a builder account",
+  (await switchButton(sp).innerText()).includes("Create a builder account"),
 );
 check(
-  "buyer header: Saved and My account, but no Builder portal and no List your project button",
-  (await bp.locator("header").getByRole("link", { name: "Saved", exact: true }).count()) > 0 &&
-    (await bp.locator("header").getByRole("link", { name: "My account" }).count()) > 0 &&
-    (await bp.locator("header").getByRole("link", { name: "Builder portal" }).count()) === 0,
+  "the buyer's bar has no builder links",
+  (await header(sp)
+    .getByRole("link", { name: /portal|For builders|Pricing|List your project/i })
+    .count()) === 0,
 );
-
-await visit(bp, "/");
 check(
-  "on the public site the buyer's header shows Saved and My account",
-  (await bp.locator("header").getByRole("link", { name: "Saved", exact: true }).count()) > 0 &&
-    (await bp.locator("header").getByRole("link", { name: "My account" }).count()) > 0 &&
-    (await bp.locator("header").getByRole("link", { name: "Builder portal" }).count()) === 0 &&
-    (await bp.locator("header").getByRole("link", { name: "List your project" }).count()) === 0 &&
-    (await bp.locator("header").getByRole("link", { name: "Log in" }).count()) === 0,
+  "the buyer's account page has no builder card",
+  (await text(sp)).includes("Are you a builder") === false &&
+    (await sp.getByRole("link", { name: "List your project" }).count()) === 0,
 );
 
-await visitList(bp);
-check("buyers get hearts on the marketplace", (await hearts(bp).count()) > 0);
-await hearts(bp).first().click();
-await bp.waitForFunction(
+await visit(sp, "/");
+check(
+  "the buyer's header: Projects, Saved, My account",
+  (await navLink(sp, "Projects").isVisible()) &&
+    (await headerLink(sp, "Saved", true).count()) > 0 &&
+    (await headerLink(sp, "My account").count()) > 0,
+);
+check(
+  "no builder links in the header",
+  !(await navLink(sp, "For builders").isVisible()) && !(await navLink(sp, "Pricing").isVisible()),
+);
+check(
+  "none in the footer either",
+  !(await footerLink(sp, "For builders").isVisible()) &&
+    !(await footerLink(sp, "Pricing").isVisible()) &&
+    (await footerLink(sp, "Projects").isVisible()),
+);
+check(
+  "no List your project button anywhere on the home page",
+  (await sp
+    .getByRole("link", { name: "List your project" })
+    .evaluateAll((els) => els.filter((e) => e.offsetParent !== null).length)) === 0,
+);
+check(
+  "the builder band is not shown",
+  !(await sp.locator('section[data-for="builder"]').first().isVisible()),
+);
+check(
+  "the builder pages are not available: /for-builders goes home",
+  (await go(sp, "/for-builders")) === "/",
+);
+check("and /pricing too", (await go(sp, "/pricing")) === "/");
+
+await visitList(sp);
+check("buyers get hearts", (await hearts(sp).count()) > 0);
+await hearts(sp).first().click();
+await sp.waitForFunction(
   () => document.querySelector('[data-testid="shortlist-heart"][aria-pressed="true"]'),
   null,
   { timeout: 10000 },
 );
-await bp.goto(baseUrl + "/account");
-await settle(bp);
-check(
-  "saving shows up on the buyer home",
-  (await bp.getByTestId("saved-count").innerText()).includes("saved 1 project"),
-);
-check(
-  "with the project listed under Recently saved",
-  (await text(bp)).includes("Recently saved") && (await text(bp)).includes("Green Valley Enclave"),
-);
-await bp.goto(baseUrl + "/account/shortlist");
-await settle(bp);
-check(
-  "and on the Saved projects tab",
-  (await bp.locator('[data-testid="listing-card"]').count()) === 1,
-);
+const soloApi = await (await sp.request.get(baseUrl + "/api/shortlist")).json();
+check("the save API lets a buyer save", soloApi.canSave === true && soloApi.ids.length === 1);
 
-const buyerApi = await bp.request.get(baseUrl + "/api/shortlist");
-const buyerList = await buyerApi.json();
+// forged cookies
+const forged = await open(people.solo, DESKTOP, [modeCookie("builder")]);
 check(
-  "the save API tells a buyer they can save",
-  buyerList.authenticated === true && buyerList.canSave === true && buyerList.ids.length === 1,
-  JSON.stringify(buyerList),
+  "a forged builder cookie gives a buyer-only person nothing",
+  (await go(forged.page, "/portal")) === "/account",
+  where(forged.page),
 );
+const me = await (await forged.page.request.get(baseUrl + "/api/me")).json();
+check(
+  "the server still says buyer",
+  me.mode === "buyer" && me.canBuild === false,
+  JSON.stringify(me),
+);
+check("and puts the cookie right", (await cookieValue(forged.context, "rkb_mode")) === "buyer");
+await forged.context.close();
+const forgedAdmin = await open(people.solo, DESKTOP, [modeCookie("admin")]);
+check(
+  "a forged admin cookie does nothing",
+  (await go(forgedAdmin.page, "/admin")) === "/account",
+  where(forgedAdmin.page),
+);
+await forgedAdmin.context.close();
 
-// the builder door for a buyer
+// =======================================================================================
+section("3. One email, both accounts: the same person adds a builder account without logging out");
+
+const dual = await open(people.dual);
+const dp = dual.page;
+await go(dp, "/dashboard?as=buyer");
+await visitList(dp);
+await hearts(dp).first().click();
+await dp.waitForFunction(
+  () => document.querySelector('[data-testid="shortlist-heart"][aria-pressed="true"]'),
+  null,
+  { timeout: 10000 },
+);
+await visit(dp, "/");
 check(
-  "builder door: a buyer is offered a builder account",
-  (await go(bp, "/dashboard?as=builder")) === "/start-listing",
-  where(bp),
+  "in buyer mode the header offers the builder account",
+  (await switchButton(dp).first().innerText()).includes("Create a builder account"),
+);
+await switchButton(dp).first().click();
+await dp.waitForURL(/\/start-listing/);
+await settle(dp);
+check("it opens the page that creates a builder account", where(dp) === "/start-listing");
+check(
+  "which says the buyer account stays as it is",
+  (await dp.getByTestId("both-accounts-note").innerText()).includes("buyer account stays as it is"),
 );
 check(
-  "and is warned that the account will change",
-  (await bp.getByTestId("role-switch-warning").innerText()).includes(
-    "turns your account into a builder account",
-  ),
-);
-check(
-  "nothing was created just by looking",
+  "nothing is created just by looking",
   (
     await sql(
-      `SELECT count(*)::int AS n FROM "BuilderMember" bm JOIN "User" u ON u.id = bm."userId" WHERE u.email = 'rbuyer@test.example'`,
+      `SELECT count(*)::int AS n FROM "BuilderMember" bm JOIN "User" u ON u.id = bm."userId" WHERE u.email = 'dual@test.example'`,
     )
   )[0].n === 0,
 );
-
-// =======================================================================================
-section("3. The same person becomes a builder");
-
-await bp.getByRole("button", { name: "Create my builder account" }).click();
-await bp.waitForURL(/\/portal$/);
-await settle(bp);
-check("creating the builder account lands in the portal", where(bp) === "/portal");
+await dp.getByRole("button", { name: "Create my builder account" }).click();
+await dp.waitForURL(/\/portal$/);
+await settle(dp);
+check("creating it lands in the builder portal", where(dp) === "/portal");
 check(
-  "builder pages say Builder account",
-  (await bp.getByTestId("account-kind").innerText()) === "Builder account",
+  "in builder mode",
+  (await cookieValue(dual.context, "rkb_mode")) === "builder" && (await htmlMode(dp)) === "builder",
+);
+check(
+  "the stored account records both",
+  (await sql(`SELECT role FROM "User" WHERE email = 'dual@test.example'`))[0].role ===
+    "BUILDER_OWNER",
+);
+check(
+  "still the same login: one user for this email",
+  (await sql(`SELECT count(*)::int AS n FROM "User" WHERE email = 'dual@test.example'`))[0].n === 1,
+);
+
+// ---- builder mode
+section("4. In builder mode nothing made for buyers is shown");
+check(
+  "the portal says Builder account",
+  (await dp.getByTestId("account-kind").innerText()) === "Builder account",
+);
+check(
+  "the builder bar offers the way back",
+  (await switchButton(dp).innerText()).includes("Switch to buyer account"),
+);
+check(
+  "the builder bar has no buyer links",
+  (await header(dp)
+    .getByRole("link", { name: /Saved|My account|Browse projects|Marketplace|Projects$/ })
+    .count()) === 0,
 );
 check(
   "the portal has the builder's own tabs",
-  (await bp.getByRole("link", { name: "Company profile" }).count()) > 0,
-);
-check(
-  "the builder shell links to the portal and the marketplace, not to buyer pages",
-  (await bp
-    .getByRole("navigation", { name: "Account" })
-    .getByRole("link", { name: "Portal" })
-    .count()) === 1 &&
-    (await bp
-      .getByRole("navigation", { name: "Account" })
-      .getByRole("link", { name: "Saved" })
-      .count()) === 0,
+  (await dp.getByRole("link", { name: "Company profile" }).count()) > 0,
 );
 
+check("the home page is a buyer page: it goes to the portal", (await go(dp, "/")) === "/portal");
+check("search too", (await go(dp, "/projects")) === "/portal");
+check("a city page", (await go(dp, "/projects/hosur")) === "/portal");
+check("a project page", (await go(dp, "/project/green-valley")) === "/portal");
+check("a public builder page", (await go(dp, "/builder/anand-realty")) === "/portal");
 check(
-  "builder door: goes to the portal, no notice",
-  (await go(bp, "/dashboard?as=builder")) === "/portal",
-  where(bp),
+  "the builder pages are open: /for-builders",
+  (await go(dp, "/for-builders")) === "/for-builders",
+);
+await visit(dp, "/pricing");
+check("and /pricing", where(dp) === "/pricing");
+check(
+  "its header: Builder portal and the way back, no buyer links",
+  (await headerLink(dp, "Builder portal").count()) > 0 &&
+    (await headerLink(dp, "Saved", true).count()) === 0 &&
+    (await headerLink(dp, "My account").count()) === 0,
 );
 check(
-  "no notice is shown for the right door",
-  (await bp.getByTestId("login-notice").count()) === 0,
+  "the nav shows For builders and Pricing but not Projects",
+  (await navLink(dp, "For builders").isVisible()) &&
+    (await navLink(dp, "Pricing").isVisible()) &&
+    !(await navLink(dp, "Projects").isVisible()),
 );
 check(
-  "buyer door with a builder account: goes to the portal with a note",
-  (await go(bp, "/dashboard?as=buyer")) === "/portal?notice=builder-account",
-  where(bp),
-);
-check(
-  "and the note explains why",
-  (await bp.getByTestId("login-notice").innerText()).includes("This is a builder account") &&
-    (await bp.getByTestId("login-notice").innerText()).includes("different email address"),
-);
-await bp.goto(baseUrl + "/portal?notice=%3Cscript%3Ealert(1)%3C/script%3E");
-await settle(bp);
-check("a made-up notice is not shown", (await bp.getByTestId("login-notice").count()) === 0);
-check("no door: /dashboard goes to the portal", (await go(bp, "/dashboard")) === "/portal");
-
-check("builders cannot open the buyer home", (await go(bp, "/account")) === "/portal");
-check("or the saved projects page", (await go(bp, "/account/shortlist")) === "/portal");
-check("or /start-listing again", (await go(bp, "/start-listing")) === "/portal");
-
-await visit(bp, "/");
-check(
-  "on the public site the builder's header shows Builder portal only",
-  (await bp.locator("header").getByRole("link", { name: "Builder portal" }).count()) > 0 &&
-    (await bp.locator("header").getByRole("link", { name: "Saved", exact: true }).count()) === 0 &&
-    (await bp.locator("header").getByRole("link", { name: "My account" }).count()) === 0 &&
-    (await bp.locator("header").getByRole("link", { name: "List your project" }).count()) === 0 &&
-    (await bp.locator("header").getByRole("link", { name: "Log in" }).count()) === 0,
+  "the footer too",
+  (await footerLink(dp, "For builders").isVisible()) &&
+    !(await footerLink(dp, "Projects").isVisible()),
 );
 
-await visitList(bp);
+const dualBuilderApi = await (await dp.request.get(baseUrl + "/api/shortlist")).json();
 check(
-  "builders do not get hearts on the marketplace",
-  (await hearts(bp).count()) === 0 &&
-    (await bp.locator('[data-testid="listing-card"]').count()) === 1,
+  "in builder mode the save API says no saving",
+  dualBuilderApi.canSave === false && dualBuilderApi.ids.length === 0,
+  JSON.stringify(dualBuilderApi),
 );
-const projectAnswered = bp
-  .waitForResponse((r) => r.url().includes("/api/shortlist"), { timeout: 10000 })
-  .catch(() => null);
-await bp.goto(baseUrl + "/project/green-valley");
-await projectAnswered;
-await settle(bp);
-check(
-  "nor a Save button on a project page",
-  (await bp.getByRole("button", { name: /^Save / }).count()) === 0,
-);
-check(
-  "but the Share button is still there",
-  (await bp.getByRole("button", { name: "Share" }).count()) === 1,
-);
-
-const builderApi = await bp.request.get(baseUrl + "/api/shortlist");
-const builderList = await builderApi.json();
-check(
-  "the save API tells a builder they cannot save",
-  builderList.authenticated === true &&
-    builderList.canSave === false &&
-    builderList.ids.length === 0,
-  JSON.stringify(builderList),
-);
-const builderPost = await bp.request.post(baseUrl + "/api/shortlist", {
+const builderPost = await dp.request.post(baseUrl + "/api/shortlist", {
   data: { projectId, saved: true },
-  headers: { "Content-Type": "application/json" },
+  headers: jsonHeaders,
 });
-check("and refuses a save outright", builderPost.status() === 403, String(builderPost.status()));
+check("and refuses a save", builderPost.status() === 403, String(builderPost.status()));
+
+// ---- switch back
+section("5. Switching back to the buyer account without logging out");
+await visit(dp, "/portal");
+await switchButton(dp).click();
+await dp.waitForURL(/\/account$/);
+await settle(dp);
 check(
-  "the project the person saved as a buyer is kept, not deleted",
+  "the switch puts them in the buyer account",
+  where(dp) === "/account" && (await cookieValue(dual.context, "rkb_mode")) === "buyer",
+);
+check(
+  "still the same session: no login was needed",
+  (await dp.getByTestId("account-kind").innerText()) === "Buyer account",
+);
+check(
+  "their saved project is still there",
+  (await dp.getByTestId("saved-count").innerText()).includes("saved 1 project"),
+  await dp.getByTestId("saved-count").innerText(),
+);
+check(
+  "the bar now offers the builder account they have",
+  (await switchButton(dp).innerText()).includes("Switch to builder account"),
+);
+check(
+  "and no builder links",
+  (await header(dp)
+    .getByRole("link", { name: /portal|For builders|Pricing|List your project/i })
+    .count()) === 0,
+);
+await visit(dp, "/");
+check(
+  "the buyer side is back",
+  (await navLink(dp, "Projects").isVisible()) &&
+    !(await navLink(dp, "For builders").isVisible()) &&
+    !(await footerLink(dp, "Pricing").isVisible()),
+);
+await visitList(dp);
+check(
+  "hearts are back, with the saved one filled",
+  (await hearts(dp).count()) > 0 &&
+    (await dp.locator('[data-testid="shortlist-heart"][aria-pressed="true"]').count()) === 1,
+);
+const dualBuyerApi = await (await dp.request.get(baseUrl + "/api/shortlist")).json();
+check(
+  "the same person can save again as a buyer",
+  dualBuyerApi.canSave === true && dualBuyerApi.ids.length === 1,
+);
+check(
+  "the builder's data was not touched by switching",
   (
     await sql(
-      `SELECT count(*)::int AS n FROM "Shortlist" s JOIN "User" u ON u.id = s."userId" WHERE u.email = 'rbuyer@test.example'`,
+      `SELECT count(*)::int AS n FROM "Builder" b JOIN "BuilderMember" bm ON bm."builderId" = b.id JOIN "User" u ON u.id = bm."userId" WHERE u.email = 'dual@test.example'`,
     )
   )[0].n === 1,
 );
 
-const builderPhone = await open(people.buyer, PHONE);
-await visit(builderPhone.page, "/");
-await builderPhone.page.getByRole("button", { name: "Open menu" }).click();
+// ---- the two ways of arriving, and deep links
+section("6. Doors, deep links and logging out");
+check("buyer door: the buyer account", (await go(dp, "/dashboard?as=buyer")) === "/account");
 check(
-  "on a phone the builder's menu shows the portal link",
-  (await builderPhone.page
+  "builder door: the builder account, because they have one",
+  (await go(dp, "/dashboard?as=builder")) === "/portal" &&
+    (await cookieValue(dual.context, "rkb_mode")) === "builder",
+);
+check("no door: they stay in the account they were in", (await go(dp, "/dashboard")) === "/portal");
+await go(dp, "/dashboard?as=buyer");
+check(
+  "a builder page opened while in buyer mode (an email link): goes there through the switch",
+  (await go(dp, "/portal/projects")) === "/portal/projects" &&
+    (await cookieValue(dual.context, "rkb_mode")) === "builder",
+  where(dp),
+);
+check(
+  "a buyer page opened while in builder mode: the same",
+  (await go(dp, "/account/shortlist")) === "/account/shortlist" &&
+    (await cookieValue(dual.context, "rkb_mode")) === "buyer",
+  where(dp),
+);
+check(
+  "/start-listing for someone who already has a builder account takes them to it",
+  (await go(dp, "/start-listing")) === "/portal",
+);
+check(
+  "a person with a builder account can only be in one place: no second company",
+  (
+    await sql(
+      `SELECT count(*)::int AS n FROM "BuilderMember" bm JOIN "User" u ON u.id = bm."userId" WHERE u.email = 'dual@test.example'`,
+    )
+  )[0].n === 1,
+);
+
+const bad = await fetch(baseUrl + "/switch?to=admin", { redirect: "manual" });
+check(
+  "/switch needs a login",
+  bad.status === 307 && (bad.headers.get("location") ?? "").includes("/auth/login"),
+  `${bad.status} ${bad.headers.get("location")}`,
+);
+const switchToAdmin = await dp.request.get(baseUrl + "/switch?to=admin", { maxRedirects: 0 });
+check(
+  "nobody can switch into the admin console",
+  switchToAdmin.status() === 307,
+  String(switchToAdmin.status()),
+);
+check(
+  "it changed nothing",
+  (await dp.request.get(baseUrl + "/api/me").then((r) => r.json())).mode === "builder",
+);
+const evilNext = await dp.request.get(
+  baseUrl + "/switch?to=buyer&next=https%3A%2F%2Fevil.example",
+  { maxRedirects: 0 },
+);
+check(
+  "a switch never redirects to another site",
+  (evilNext.headers()["location"] ?? "").startsWith("/") &&
+    !(evilNext.headers()["location"] ?? "").includes("evil"),
+  evilNext.headers()["location"],
+);
+await dp.request.get(baseUrl + "/switch?to=builder", { maxRedirects: 0 });
+
+const logout = await fetch(baseUrl + "/logout", { redirect: "manual" });
+check(
+  "logging out sends them on to Auth0",
+  logout.status === 307 && (logout.headers.get("location") ?? "") === "/auth/logout",
+);
+check(
+  "and forgets the account that was in use",
+  (logout.headers.get("set-cookie") ?? "").includes("rkb_mode=;") ||
+    (logout.headers.get("set-cookie") ?? "").includes("Max-Age=0"),
+  logout.headers.get("set-cookie"),
+);
+
+// ---- phone
+const phoneDual = await open(people.dual, PHONE, [modeCookie("buyer")]);
+await visit(phoneDual.page, "/");
+await phoneDual.page.getByRole("button", { name: "Open menu" }).click();
+check(
+  "on a phone the menu has the switch",
+  (await phoneDual.page.locator("#mobile-menu").getByTestId("mode-switch").innerText()).includes(
+    "Switch to builder account",
+  ),
+);
+check(
+  "and no builder links in the menu",
+  !(await phoneDual.page
     .locator("#mobile-menu")
-    .getByRole("link", { name: "Builder portal" })
-    .count()) === 1,
+    .getByRole("link", { name: "For builders" })
+    .isVisible()),
+);
+await phoneDual.page.locator("#mobile-menu").getByTestId("mode-switch").click();
+await phoneDual.page.waitForURL(/\/portal$/);
+await settle(phoneDual.page);
+check(
+  "switching on a phone works, and the portal fits",
+  where(phoneDual.page) === "/portal" && !(await overflows(phoneDual.page)),
+);
+await phoneDual.context.close();
+
+// ---- no flash
+const early = await open(people.dual, DESKTOP, [modeCookie("builder")]);
+await early.page.goto(baseUrl + "/for-builders", { waitUntil: "domcontentloaded" });
+check(
+  "the mode is on the page before anything is painted (no flash of the other side)",
+  (await htmlMode(early.page)) === "builder",
 );
 check(
-  "the portal fits a phone screen",
-  await (async () => {
-    await builderPhone.page.goto(baseUrl + "/portal");
-    await settle(builderPhone.page);
-    return !(await overflows(builderPhone.page));
-  })(),
+  "and the buyer link is hidden at that moment",
+  !(await navLink(early.page, "Projects").isVisible()),
 );
-await builderPhone.context.close();
+await early.context.close();
 
 // =======================================================================================
-section("4. An admin");
+section("7. An admin");
 
 const admin = await open(people.admin);
 const ap = admin.page;
+check("buyer door: the console", (await go(ap, "/dashboard?as=buyer")) === "/admin", where(ap));
+check("builder door: the console", (await go(ap, "/dashboard?as=builder")) === "/admin");
 check(
-  "buyer door: an admin goes to the console",
-  (await go(ap, "/dashboard?as=buyer")) === "/admin",
-  where(ap),
+  "the admin shell says Admin and has no switch",
+  (await ap.getByTestId("account-kind").innerText()) === "Admin" &&
+    (await switchButton(ap).count()) === 0,
 );
-check("builder door: also to the console", (await go(ap, "/dashboard?as=builder")) === "/admin");
-check("no door: also to the console", (await go(ap, "/dashboard")) === "/admin");
-check("the admin shell says Admin", (await ap.getByTestId("account-kind").innerText()) === "Admin");
 await visit(ap, "/");
 check(
-  "the admin's public header shows Admin console only",
-  (await ap.locator("header").getByRole("link", { name: "Admin console" }).count()) > 0 &&
-    (await ap.locator("header").getByRole("link", { name: "Saved", exact: true }).count()) === 0 &&
-    (await ap.locator("header").getByRole("link", { name: "Builder portal" }).count()) === 0,
+  "the admin's header: Admin console, no buyer or builder account links",
+  (await headerLink(ap, "Admin console").count()) > 0 &&
+    (await headerLink(ap, "Saved", true).count()) === 0 &&
+    (await headerLink(ap, "Builder portal").count()) === 0 &&
+    (await switchButton(ap).count()) === 0,
+);
+check(
+  "the admin can see the marketplace and the builder pages",
+  (await go(ap, "/projects")) === "/projects" && (await go(ap, "/pricing")) === "/pricing",
 );
 await visitList(ap);
-check("admins do not get hearts either", (await hearts(ap).count()) === 0);
+check("but gets no hearts", (await hearts(ap).count()) === 0);
 const adminPost = await ap.request.post(baseUrl + "/api/shortlist", {
   data: { projectId, saved: true },
-  headers: { "Content-Type": "application/json" },
+  headers: jsonHeaders,
 });
-check("and cannot save through the API", adminPost.status() === 403, String(adminPost.status()));
+check("and cannot save", adminPost.status() === 403, String(adminPost.status()));
 check(
-  "the buyer pages send the admin to the console",
-  (await go(ap, "/account")) === "/admin" && (await go(ap, "/account/shortlist")) === "/admin",
+  "the buyer and builder areas send the admin to the console",
+  (await go(ap, "/account")) === "/admin" && (await go(ap, "/portal")) === "/admin",
 );
 
 // =======================================================================================
-section("5. The door never grants anything");
+section("8. The door never grants anything");
 
 const fresh = await open({
   sub: "auth0|r-fresh",
@@ -524,25 +710,21 @@ const fresh = await open({
   name: "Fresh Person",
 });
 check(
-  "a brand-new person through the builder door ends at the builder sign-up page",
+  "a brand-new person through the builder door ends at the page that creates a builder account",
   (await go(fresh.page, "/dashboard?as=builder")) === "/start-listing",
-  where(fresh.page),
 );
 check(
-  "and is still only a buyer until they press the button",
+  "and is only a buyer until they press the button",
   (await sql(`SELECT role FROM "User" WHERE email = 'fresh@test.example'`))[0].role === "BUYER",
 );
 const anonDash = await fetch(baseUrl + "/dashboard?as=builder", { redirect: "manual" });
 check(
-  "logged out, /dashboard?as=builder asks for a login first",
+  "logged out, /dashboard asks for a login first",
   anonDash.status === 307 && (anonDash.headers.get("location") ?? "").includes("/auth/login"),
-  `${anonDash.status} ${anonDash.headers.get("location")}`,
 );
-const anonAccount = await fetch(baseUrl + "/account", { redirect: "manual" });
-check("logged out, buyer pages ask for a login", anonAccount.status === 307);
 const anonPost = await fetch(baseUrl + "/api/shortlist", {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: jsonHeaders,
   body: JSON.stringify({ projectId, saved: true }),
 });
 check(

@@ -60,7 +60,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           Log in or create an account
         </h1>
         <p className="mt-3 text-lg text-slate-600">
-          Choose how you use RKB. Buyers and builders each get their own pages.
+          Choose how you want to use RKB right now. Buyers and builders each get their own pages.
         </p>
       </div>
 
@@ -116,8 +116,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       </div>
 
       <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-slate-600">
-        An email address is either a buyer account or a builder account. If you are on the team that
-        runs RKB, either option takes you to the admin console.{" "}
+        You can use the same email for both. Once you are logged in, a button at the top of every
+        page switches between your buyer account and your builder account without logging you out.
+        If you are on the team that runs RKB, either option takes you to the admin console.{" "}
         <Link href="/for-builders" className="font-semibold text-teal-700 underline">
           How listing works for builders
         </Link>

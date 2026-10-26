@@ -241,7 +241,7 @@ export default async function HomePage() {
         </Container>
       </section>
 
-      <section className="bg-teal-700 py-14 text-white">
+      <section className="bg-teal-700 py-14 text-white" data-for="builder">
         <Container className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
           <div>
             <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl">

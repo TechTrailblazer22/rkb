@@ -2,13 +2,16 @@ import Link from "next/link";
 import { Container } from "@/components/ui/container";
 import { Logo } from "@/components/ui/logo";
 
-const COLUMNS = [
+// `for` marks links that belong to one side only (see NAV_LINKS).
+type FooterLink = { href: string; label: string; for?: "buyer" | "builder" };
+
+const COLUMNS: { title: string; links: FooterLink[] }[] = [
   {
     title: "Platform",
     links: [
-      { href: "/projects", label: "Projects" },
-      { href: "/for-builders", label: "For builders" },
-      { href: "/pricing", label: "Pricing" },
+      { href: "/projects", label: "Projects", for: "buyer" },
+      { href: "/for-builders", label: "For builders", for: "builder" },
+      { href: "/pricing", label: "Pricing", for: "builder" },
     ],
   },
   {
@@ -38,7 +41,7 @@ export function SiteFooter() {
               <h2 className="text-sm font-semibold text-amber-500">{column.title}</h2>
               <ul className="mt-4 space-y-2.5">
                 {column.links.map((link) => (
-                  <li key={link.href}>
+                  <li key={link.href} data-for={link.for}>
                     <Link href={link.href} className="text-sm text-white/75 hover:text-white">
                       {link.label}
                     </Link>

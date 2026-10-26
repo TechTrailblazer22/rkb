@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { MODE_COOKIE } from "@/lib/auth/mode";
 import { getSiteUrl } from "@/lib/site";
 import "./globals.css";
 
@@ -29,9 +30,17 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
 };
 
+const MODE_SCRIPT = `(function(){try{var m=document.cookie.match(/(?:^|; )${MODE_COOKIE}=(buyer|builder|admin)/);if(m)document.documentElement.setAttribute("data-mode",m[1])}catch(e){}})()`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* Before the first paint, tell the page which account the visitor is using (from the
+            rkb_mode cookie), so the other side's elements are never shown, not even for a moment.
+            See data-for in globals.css and docs/LOGIN-ROLES.md. */}
+        <script dangerouslySetInnerHTML={{ __html: MODE_SCRIPT }} />
+      </head>
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

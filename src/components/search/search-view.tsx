@@ -97,7 +97,7 @@ export async function SearchView({
             availability, will appear here as they go live.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <a href={LIST_PROJECT_HREF} className={buttonClass("primary", "lg")}>
+            <a href={LIST_PROJECT_HREF} className={buttonClass("primary", "lg")} data-for="builder">
               I&apos;m a builder, list my project
             </a>
             <Link href="/" className={buttonClass("secondary", "lg")}>

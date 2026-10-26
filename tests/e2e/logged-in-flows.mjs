@@ -132,10 +132,19 @@ const buyer = {
   check("buyer: /portal sends them back to /account", pathOf(page) === "/account", pathOf(page));
 
   // ---------- 3. Becomes a builder ----------
-  await page.getByRole("link", { name: "List your project" }).click();
+  const create = page.getByTestId("mode-switch");
+  check(
+    "buyer: the top bar offers to create a builder account",
+    (await create.innerText()).includes("Create a builder account"),
+  );
+  check(
+    "buyer: the buyer page shows no 'List your project' link of its own",
+    (await page.getByRole("link", { name: "List your project" }).count()) === 0,
+  );
+  await create.click();
   await page.waitForURL(/\/start-listing/, { timeout: 15000 }).catch(() => {});
   check(
-    "builder: List your project opens /start-listing",
+    "builder: the switch opens /start-listing for someone with no builder account",
     pathOf(page) === "/start-listing",
     pathOf(page),
   );
@@ -146,8 +155,13 @@ const buyer = {
 
   await page.goto(baseUrl + "/dashboard");
   check("builder: Dashboard now goes to /portal", pathOf(page) === "/portal", pathOf(page));
+  // The same email now has both accounts: a buyer page switches to the buyer account.
   await page.goto(baseUrl + "/account");
-  check("builder: /account now redirects to /portal", pathOf(page) === "/portal", pathOf(page));
+  check(
+    "both accounts: /account opens the buyer account of the same login",
+    pathOf(page) === "/account",
+    pathOf(page),
+  );
   await page.goto(baseUrl + "/start-listing");
   check(
     "builder: /start-listing does not create a second company",

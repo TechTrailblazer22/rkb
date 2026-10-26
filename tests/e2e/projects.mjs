@@ -1119,7 +1119,8 @@ async function crawl(page, label, starts) {
       .evaluateAll((links) => links.map((l) => l.getAttribute("href")));
     for (const href of hrefs) {
       const clean = href.split("#")[0];
-      if (!clean || clean.startsWith("/auth/") || seen.has(clean)) continue;
+      // /auth/ and /logout end the session, which would break every page checked after them
+      if (!clean || clean.startsWith("/auth/") || clean === "/logout" || seen.has(clean)) continue;
       const response = await page.request.get(baseUrl + clean, { maxRedirects: 5 });
       seen.set(clean, response.status());
     }

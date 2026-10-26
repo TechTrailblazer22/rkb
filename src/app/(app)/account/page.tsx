@@ -77,17 +77,6 @@ export default async function AccountPage() {
           Enquiries and bookings will appear here as they are released.
         </p>
       </section>
-
-      <section className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-6">
-        <h2 className="text-lg font-bold">Are you a builder or developer?</h2>
-        <p className="mt-1 text-sm text-slate-700">
-          List your projects, take live plot enquiries and bookings. No commission on your sales.
-          Builders use a separate builder account.
-        </p>
-        <Link href="/start-listing" className={`${buttonClass("accent")} mt-4`}>
-          List your project
-        </Link>
-      </section>
     </div>
   );
 }

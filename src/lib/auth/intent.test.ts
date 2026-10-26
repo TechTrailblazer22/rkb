@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { landingFor, loginHref, parseIntent, parseNotice } from "@/lib/auth/intent";
+import { loginHref, parseIntent, resolveLogin } from "@/lib/auth/intent";
 
 describe("parseIntent", () => {
   it("accepts exactly buyer and builder", () => {
@@ -32,29 +32,33 @@ describe("loginHref", () => {
   });
 });
 
-describe("landingFor", () => {
+describe("resolveLogin", () => {
   it.each([
-    ["BUYER", "buyer", "/account"],
-    ["BUYER", "builder", "/start-listing"],
-    ["BUYER", null, "/account"],
-    ["BUILDER_OWNER", "builder", "/portal"],
-    ["BUILDER_OWNER", "buyer", "/portal?notice=builder-account"],
-    ["BUILDER_OWNER", null, "/portal"],
-    ["BUILDER_TEAM", "builder", "/portal"],
-    ["BUILDER_TEAM", "buyer", "/portal?notice=builder-account"],
-    ["ADMIN", "buyer", "/admin"],
-    ["ADMIN", "builder", "/admin"],
-    ["ADMIN", null, "/admin"],
-  ] as const)("%s through the %s door goes to %s", (role, intent, expected) => {
-    expect(landingFor(role, intent)).toBe(expected);
-  });
-});
+    // [stored role, door, mode they were in, expected mode, expected path]
+    ["BUYER", "buyer", null, "buyer", "/account"],
+    ["BUYER", "builder", null, "buyer", "/start-listing"],
+    ["BUYER", null, null, "buyer", "/account"],
+    ["BUILDER_OWNER", "builder", "buyer", "builder", "/portal"],
+    ["BUILDER_OWNER", "buyer", "builder", "buyer", "/account"],
+    ["BUILDER_OWNER", null, "buyer", "buyer", "/account"],
+    ["BUILDER_OWNER", null, "builder", "builder", "/portal"],
+    ["BUILDER_OWNER", null, null, "builder", "/portal"],
+    ["BUILDER_TEAM", "buyer", null, "buyer", "/account"],
+    ["BUILDER_TEAM", "builder", null, "builder", "/portal"],
+    ["ADMIN", "buyer", null, "admin", "/admin"],
+    ["ADMIN", "builder", null, "admin", "/admin"],
+    ["ADMIN", null, "buyer", "admin", "/admin"],
+  ] as const)(
+    "%s through the %s door (was in %s) goes to %s mode at %s",
+    (role, intent, was, mode, path) => {
+      expect(resolveLogin({ storedRole: role, intent, currentMode: was })).toEqual({ mode, path });
+    },
+  );
 
-describe("parseNotice", () => {
-  it("knows only the notices we wrote", () => {
-    expect(parseNotice("builder-account")).toBe("builder-account");
-    expect(parseNotice("<script>")).toBeNull();
-    expect(parseNotice("constructor")).toBeNull();
-    expect(parseNotice(undefined)).toBeNull();
+  it("ignores a remembered mode the person is not entitled to", () => {
+    expect(resolveLogin({ storedRole: "BUYER", intent: null, currentMode: "builder" })).toEqual({
+      mode: "buyer",
+      path: "/account",
+    });
   });
 });

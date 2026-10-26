@@ -1,9 +1,9 @@
 import type { Role } from "@/generated/prisma/enums";
-import { homePathForRole } from "@/lib/auth/roles";
+import { canBuild, homePathForMode, resolveMode, type Mode } from "@/lib/auth/mode";
 
-// Which door someone walked through on the login page. It decides where they are sent and what is
-// explained to them. It never decides what they may see: that always comes from User.role on the
-// server. See docs/LOGIN-ROLES.md.
+// Which door someone walked through on the login page. It decides which of their accounts they are
+// put into. It never decides what they may see: that comes from the accounts they really have. See
+// docs/LOGIN-ROLES.md.
 
 export type LoginIntent = "buyer" | "builder";
 
@@ -17,42 +17,37 @@ export function parseIntent(value: unknown): LoginIntent | null {
 
 /**
  * The Auth0 address that starts a login through one of the two doors. Auth0 sends the person back
- * to /dashboard, which sends them on to the right area (see landingFor).
+ * to /dashboard, which puts them in the right mode and sends them on (see resolveLogin).
  */
 export function loginHref(intent: LoginIntent, options: { signup?: boolean } = {}): string {
   const returnTo = encodeURIComponent(`/dashboard?as=${intent}`);
   return `/auth/login?${options.signup ? "screen_hint=signup&" : ""}returnTo=${returnTo}`;
 }
 
-/** Messages shown once on the page someone lands on after logging in through the wrong door. */
-export const LANDING_NOTICES = {
-  "builder-account": {
-    title: "This is a builder account",
-    body: "You used the buyer option, but this email belongs to a builder account, so you are in the builder portal. To search and save projects as a buyer, use a different email address.",
-  },
-} as const;
-
-export type LandingNotice = keyof typeof LANDING_NOTICES;
-
-export function parseNotice(value: unknown): LandingNotice | null {
-  const raw = Array.isArray(value) ? value[0] : value;
-  return typeof raw === "string" && Object.hasOwn(LANDING_NOTICES, raw)
-    ? (raw as LandingNotice)
-    : null;
-}
-
 /**
- * Where to send someone who has just logged in. `role` is the account's real role; `intent` is the
- * door they chose (or null when they did not choose one, for example after a verification email).
+ * Which mode to put someone in and where to send them, right after they log in.
+ *
+ * - The buyer door always means the buyer account. Every email has one.
+ * - The builder door means the builder account if the email has one, otherwise the page where it
+ *   can create one (the mode stays buyer until it does).
+ * - No door (a verification email, a plain protected page) keeps the mode they were last in.
+ * - Staff always go to the console.
  */
-export function landingFor(role: Role, intent: LoginIntent | null): string {
-  const home = homePathForRole(role);
-  if (role === "ADMIN") return home;
-  const isBuilder = role === "BUILDER_OWNER" || role === "BUILDER_TEAM";
+export function resolveLogin(input: {
+  storedRole: Role;
+  intent: LoginIntent | null;
+  currentMode: Mode | null;
+}): { mode: Mode; path: string } {
+  const { storedRole, intent, currentMode } = input;
+  if (storedRole === "ADMIN") return { mode: "admin", path: homePathForMode("admin") };
 
-  // A buyer who came through the builder door is offered the chance to create a builder account.
-  if (intent === "builder" && !isBuilder) return "/start-listing";
-  // A builder who came through the buyer door is told why they are in the portal.
-  if (intent === "buyer" && isBuilder) return `${home}?notice=builder-account`;
-  return home;
+  if (intent === "builder") {
+    return canBuild(storedRole)
+      ? { mode: "builder", path: homePathForMode("builder") }
+      : { mode: "buyer", path: "/start-listing" };
+  }
+  if (intent === "buyer") return { mode: "buyer", path: homePathForMode("buyer") };
+
+  const mode = resolveMode(storedRole, currentMode);
+  return { mode, path: homePathForMode(mode) };
 }

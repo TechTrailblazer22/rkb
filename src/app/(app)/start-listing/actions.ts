@@ -1,33 +1,42 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
-import { homePathForRole } from "@/lib/auth/roles";
+import { MODE_COOKIE, homePathForMode } from "@/lib/auth/mode";
+import { modeCookieOptions } from "@/lib/auth/mode-cookie";
 
 /**
- * Turns a signed-in buyer into the owner of a new, empty builder account (status DRAFT).
- * Verification and the company profile come later; this only creates the container.
+ * Adds a builder account (an empty one, status DRAFT) to the signed-in person's login. Their buyer
+ * account is untouched: the same email now has both, and they move between them with the switch at
+ * the top of the page. Verification and the company profile come later.
  */
 export async function createBuilderAccount() {
   const user = await requireUser({ returnTo: "/start-listing" });
 
-  // Admins and existing builders already have an area; do not create a second company.
-  if (user.role !== "BUYER") redirect(homePathForRole(user.role));
+  // Staff have no builder account to create.
+  if (user.mode === "admin") redirect(homePathForMode("admin"));
 
-  await getDb().$transaction(async (tx) => {
-    const alreadyOwner = await tx.builderMember.findFirst({
-      where: { userId: user.id, role: "OWNER" },
-      select: { id: true },
+  // They already have one: do not create a second company, just go to it.
+  if (!user.canBuild) {
+    await getDb().$transaction(async (tx) => {
+      const alreadyOwner = await tx.builderMember.findFirst({
+        where: { userId: user.id, role: "OWNER" },
+        select: { id: true },
+      });
+      if (alreadyOwner) return;
+
+      const builder = await tx.builder.create({ data: {} });
+      await tx.builderMember.create({
+        data: { builderId: builder.id, userId: user.id, role: "OWNER" },
+      });
+      // The stored role records that this email has a builder account as well as the buyer one.
+      await tx.user.update({ where: { id: user.id }, data: { role: "BUILDER_OWNER" } });
     });
-    if (alreadyOwner) return;
+  }
 
-    const builder = await tx.builder.create({ data: {} });
-    await tx.builderMember.create({
-      data: { builderId: builder.id, userId: user.id, role: "OWNER" },
-    });
-    await tx.user.update({ where: { id: user.id }, data: { role: "BUILDER_OWNER" } });
-  });
-
-  redirect("/portal");
+  // Straight into the builder account they just made (or already had).
+  (await cookies()).set(MODE_COOKIE, "builder", modeCookieOptions());
+  redirect(homePathForMode("builder"));
 }

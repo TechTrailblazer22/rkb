@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { Role } from "@/generated/prisma/enums";
 import { computeRole } from "@/lib/auth/roles";
+import { canBuild, defaultMode, modesFor, roleForMode, type Mode } from "@/lib/auth/mode";
 
 // No Next.js or `server-only` imports here, so integration tests can run this against
 // a real Postgres.
@@ -10,7 +11,18 @@ export type AppUser = {
   email: string;
   name: string | null;
   mobile: string | null;
+  /**
+   * The role in the mode the person is using right now (BUYER while they use their buyer account,
+   * the builder role while they use their builder account). This is what the access checks read.
+   */
   role: Role;
+  /** What the person can be, as stored: BUYER, a builder role (which also allows buying), or ADMIN. */
+  storedRole: Role;
+  /** The mode in use, and the modes they may switch between. */
+  mode: Mode;
+  modes: Mode[];
+  /** Whether they have a builder account (a buyer account needs no setup). */
+  canBuild: boolean;
   builderIds: string[];
   termsVersion: string | null;
 };
@@ -35,12 +47,18 @@ type UserWithMemberships = NonNullable<Awaited<ReturnType<PrismaClient["user"]["
 };
 
 function toAppUser(user: UserWithMemberships): AppUser {
+  // The mode starts at the default; the session layer applies the person's chosen mode on top.
+  const mode = defaultMode(user.role);
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     mobile: user.mobile,
-    role: user.role,
+    role: roleForMode(user.role, mode),
+    storedRole: user.role,
+    mode,
+    modes: modesFor(user.role),
+    canBuild: canBuild(user.role),
     builderIds: user.builderMemberships.map((m) => m.builderId),
     termsVersion: user.termsVersion,
   };

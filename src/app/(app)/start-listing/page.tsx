@@ -1,14 +1,18 @@
 import { requireUser } from "@/lib/auth/session";
 import { buttonClass } from "@/components/ui/button";
 import { redirect } from "next/navigation";
-import { homePathForRole } from "@/lib/auth/roles";
+import { homePathForMode } from "@/lib/auth/mode";
 import { createBuilderAccount } from "./actions";
 
 export const metadata = { title: "List your project" };
 
 export default async function StartListingPage() {
   const user = await requireUser({ returnTo: "/start-listing" });
-  if (user.role !== "BUYER") redirect(homePathForRole(user.role));
+  // Staff have no builder account to create. Someone who already has one goes to it (through the
+  // switch, if they are currently using their buyer account).
+  if (user.mode === "admin") redirect(homePathForMode("admin"));
+  if (user.canBuild)
+    redirect(user.mode === "builder" ? "/portal" : "/switch?to=builder&next=%2Fportal");
 
   return (
     <div className="mx-auto max-w-lg rounded-xl border border-slate-200 bg-white p-6 sm:p-8">
@@ -35,13 +39,12 @@ export default async function StartListingPage() {
       </ol>
 
       <p
-        data-testid="role-switch-warning"
-        className="mt-6 rounded-lg bg-amber-50 p-4 text-sm text-slate-700"
+        data-testid="both-accounts-note"
+        className="bg-surface mt-6 rounded-lg p-4 text-sm text-slate-700"
       >
-        <span className="font-semibold">This turns your account into a builder account.</span> The
-        buyer pages (your account page and saved projects) are not available to builder accounts.
-        The projects you saved are kept, but they are not shown while this is a builder account. To
-        keep shopping as a buyer too, use a different email address for your builder account.
+        <span className="font-semibold">Your buyer account stays as it is.</span> This adds a
+        builder account to the same email address. Once it exists you can switch between the two
+        from the top of any page, without logging out.
       </p>
 
       <form action={createBuilderAccount} className="mt-6">
