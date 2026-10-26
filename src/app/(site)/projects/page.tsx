@@ -1,40 +1,56 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { buttonClass } from "@/components/ui/button";
+import { SearchView } from "@/components/search/search-view";
+import { searchMetadata } from "@/components/search/search-meta";
+import { RecentlyViewed } from "@/components/public/recently-viewed";
 import { Container } from "@/components/ui/container";
-import { PlotGridArt } from "@/components/ui/plot-grid-art";
-import { LIST_PROJECT_HREF } from "@/components/site/nav-links";
+import { getDb } from "@/lib/db";
+import { parseFilters, TYPE_NAMES, TYPE_SLUGS } from "@/lib/search/params";
+import { listCities } from "@/lib/search/public";
+import { searchRows } from "@/lib/search/query";
 
-export const metadata: Metadata = {
-  title: "Projects",
-  description:
-    "Browse verified plotted, farm house, residential and commercial projects. Opening soon.",
-};
+const HEADING = "Projects for sale";
+const DESCRIPTION =
+  "Browse plots, farm houses, residential and commercial projects from verified builders, with live plot availability and verified approvals.";
 
-// Placeholder until the marketplace search ships (Phase 5). Search links already point here,
-// so they will start working without any change on the home page.
-export default function ProjectsPage() {
+export async function generateMetadata({
+  searchParams,
+}: PageProps<"/projects">): Promise<Metadata> {
+  const filters = parseFilters(await searchParams);
+  const { total } = await searchRows(getDb(), filters, { limit: 1 });
+  return searchMetadata({
+    title: HEADING,
+    description: DESCRIPTION,
+    basePath: "/projects",
+    filters,
+    total,
+  });
+}
+
+export default async function ProjectsPage({ searchParams }: PageProps<"/projects">) {
+  const filters = parseFilters(await searchParams);
+  const cities = (await listCities()).slice(0, 8);
+
   return (
-    <section className="py-16 sm:py-24">
-      <Container className="max-w-2xl text-center">
-        <PlotGridArt live cols={12} rows={3} className="mx-auto max-w-sm" />
-        <h1 className="mt-10 text-3xl font-extrabold tracking-tight sm:text-4xl">
-          The project marketplace opens soon
-        </h1>
-        <div className="mx-auto mt-4 h-1.5 w-12 rounded-full bg-amber-500" />
-        <p className="mt-5 text-lg text-slate-600">
-          We are onboarding verified builders right now. Their projects, with live plot
-          availability, will appear here as they go live.
-        </p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <a href={LIST_PROJECT_HREF} className={buttonClass("primary", "lg")}>
-            I&apos;m a builder, list my project
-          </a>
-          <Link href="/" className={buttonClass("secondary", "lg")}>
-            Back to home
-          </Link>
-        </div>
+    <>
+      <SearchView
+        filters={filters}
+        basePath="/projects"
+        heading={HEADING}
+        intro="Every project here is from a verified builder. Plot availability is updated by the builder."
+        quickLinks={[
+          ...cities.map((city) => ({
+            href: `/projects/${city.slug}`,
+            label: `Projects in ${city.name}`,
+          })),
+          ...Object.entries(TYPE_SLUGS).map(([type, slug]) => ({
+            href: `/projects?type=${slug}`,
+            label: TYPE_NAMES[type as keyof typeof TYPE_NAMES],
+          })),
+        ]}
+      />
+      <Container className="pb-12">
+        <RecentlyViewed />
       </Container>
-    </section>
+    </>
   );
 }

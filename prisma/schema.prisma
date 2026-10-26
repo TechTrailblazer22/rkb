@@ -2,6 +2,7 @@
 // Phase 0: User. Phase 1: consent, Builder, BuilderMember.
 // Phase 3: full builder profile, verification documents, audit log.
 // Phase 4: projects, approvals, media, plots and the plot status log.
+// Phase 5: shortlist (saved projects).
 // Later phases add Project, Plot, Lead...
 // Connection URLs are configured in prisma7.config.ts (migrations) and src/lib/db.ts (runtime).
 
@@ -84,6 +85,7 @@ model User {
 
   builderMemberships BuilderMember[]
   uploadedDocuments  BuilderDocument[]
+  shortlist          Shortlist[]
 
   @@index([role])
 }
@@ -324,13 +326,17 @@ model Project {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  builder   Builder           @relation(fields: [builderId], references: [id], onDelete: Cascade)
-  approvals ProjectApproval[]
-  media     ProjectMedia[]
-  plots     Plot[]
+  builder     Builder           @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  approvals   ProjectApproval[]
+  media       ProjectMedia[]
+  plots       Plot[]
+  shortlisted Shortlist[]
 
   @@index([builderId, status])
   @@index([status])
+  // Search and the city and type pages filter live projects by these.
+  @@index([status, type])
+  @@index([status, city])
 }
 
 // RERA, TNCP, municipal and bank-loan approvals. At most one of each kind per project.
@@ -422,4 +428,21 @@ model PlotStatusLog {
 
   @@index([plotId])
   @@index([projectId, createdAt])
+}
+
+// ---------------------------------------------------------------------------------------
+// Phase 5: the public marketplace
+// ---------------------------------------------------------------------------------------
+
+// A project a logged-in user has saved. One row per user and project.
+model Shortlist {
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([userId, projectId])
+  @@index([projectId])
 }

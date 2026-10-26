@@ -114,6 +114,19 @@ describe("cloudinary driver", () => {
     );
   });
 
+  it("can ask for a smaller picture, and never for a smaller PDF", () => {
+    const storage = createCloudinaryStorage();
+    storage.publicUrl("builders/b1/public/projects/p1/photo-abc.jpg", { width: 640 });
+    expect(mocks.url).toHaveBeenLastCalledWith(
+      "builders/b1/public/projects/p1/photo-abc",
+      expect.objectContaining({ width: 640, crop: "limit", fetch_format: "auto" }),
+    );
+    storage.publicUrl("builders/b1/public/projects/p1/brochure-abc.pdf", { width: 640 });
+    expect(mocks.url.mock.calls.at(-1)?.[1]).not.toHaveProperty("width");
+    storage.publicUrl("builders/b1/public/projects/p1/photo-abc.jpg");
+    expect(mocks.url.mock.calls.at(-1)?.[1]).not.toHaveProperty("width");
+  });
+
   it("deletes with the right delivery type", async () => {
     mocks.destroy.mockResolvedValue({ result: "ok" });
     await createCloudinaryStorage().remove("builders/b1/docs/pan-abc.pdf", "private");

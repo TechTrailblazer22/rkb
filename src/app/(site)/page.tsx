@@ -9,13 +9,22 @@ import {
   Trees,
 } from "lucide-react";
 import { SearchCard } from "@/components/home/search-card";
-import { ProjectCard } from "@/components/project-card";
+import { RecentlyViewed } from "@/components/public/recently-viewed";
+import { ShortlistProvider } from "@/components/public/shortlist";
+import { ListingCard, sampleToCard } from "@/components/search/listing-card";
 import { buttonClass } from "@/components/ui/button";
 import { Container, SectionHeading } from "@/components/ui/container";
 import { PlotGridArt } from "@/components/ui/plot-grid-art";
 import { PlotLegend } from "@/components/ui/plot-status";
 import { LIST_PROJECT_HREF } from "@/components/site/nav-links";
+import { getDb } from "@/lib/db";
 import { sampleProjects } from "@/lib/sample-projects";
+import { searchListings, type ListingCardData } from "@/lib/search/cards";
+import { EMPTY_FILTERS } from "@/lib/search/params";
+import { listCities, type CityEntry } from "@/lib/search/public";
+
+// Rebuilt every five minutes, and straight away when a project goes live or changes.
+export const revalidate = 300;
 
 const TRUST = [
   {
@@ -59,7 +68,28 @@ const BUYER_STEPS = [
   { title: "Book", text: "Reserve your plot with a token once online booking opens." },
 ];
 
-export default function HomePage() {
+/** The newest live projects and the cities that have some. Never fails the page: if the database
+ *  cannot be reached the home page falls back to labelled sample cards. */
+async function loadHomeData(): Promise<{
+  cards: ListingCardData[];
+  cities: CityEntry[];
+  real: boolean;
+}> {
+  try {
+    const [{ cards }, cities] = await Promise.all([
+      searchListings(getDb(), EMPTY_FILTERS, { limit: 6 }),
+      listCities(),
+    ]);
+    if (cards.length > 0) return { cards, cities: cities.slice(0, 8), real: true };
+  } catch (error) {
+    console.error("home: could not load live projects", error);
+  }
+  return { cards: sampleProjects.slice(0, 3).map(sampleToCard), cities: [], real: false };
+}
+
+export default async function HomePage() {
+  const { cards, cities, real } = await loadHomeData();
+
   return (
     <>
       <section className="bg-navy-900 relative overflow-hidden text-white">
@@ -123,14 +153,24 @@ export default function HomePage() {
       <section className="bg-surface py-16">
         <Container>
           <SectionHeading
-            title="Projects you'll find here"
-            subtitle="These are sample listings that show how a project looks on RKB. Real projects appear here as verified builders go live."
+            title={real ? "Latest projects" : "Projects you'll find here"}
+            subtitle={
+              real
+                ? "Fresh listings from verified builders, with live plot availability."
+                : "These are sample listings that show how a project looks on RKB. Real projects appear here as verified builders go live."
+            }
           />
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {sampleProjects.slice(0, 3).map((project) => (
-              <ProjectCard key={project.slug} project={project} />
-            ))}
-          </div>
+
+          <ShortlistProvider>
+            <ul className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {cards.map((card, index) => (
+                <li key={card.id}>
+                  <ListingCard card={card} priority={index < 3} />
+                </li>
+              ))}
+            </ul>
+          </ShortlistProvider>
+
           <div className="mt-8 text-center">
             <Link href="/projects" className={buttonClass("secondary", "lg")}>
               Browse all projects
@@ -160,6 +200,32 @@ export default function HomePage() {
         </Container>
       </section>
 
+      {cities.length > 0 && (
+        <section className="bg-surface pb-4" aria-label="Browse by city">
+          <Container>
+            <h2 className="text-xl font-bold">Browse by city</h2>
+            <ul className="mt-4 flex flex-wrap gap-2">
+              {cities.map((city) => (
+                <li key={city.slug}>
+                  <Link
+                    href={`/projects/${city.slug}`}
+                    className="inline-block rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold hover:border-teal-500"
+                  >
+                    {city.name} <span className="text-slate-500">({city.count})</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Container>
+        </section>
+      )}
+
+      <section className="py-4">
+        <Container>
+          <RecentlyViewed />
+        </Container>
+      </section>
+
       <section className="bg-surface py-16">
         <Container>
           <SectionHeading title="How buying works" align="center" />
@@ -181,7 +247,7 @@ export default function HomePage() {
             <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
               You build the project. We bring the buyers.
             </h2>
-            <p className="mt-2 max-w-xl text-white/85">
+            <p className="mt-2 max-w-xl text-white">
               List your project, show live plot availability and receive buyer enquiries directly. A
               simple monthly plan, with no commission on your sales.
             </p>

@@ -18,7 +18,7 @@ export interface StorageDriver {
   /** Private files only: returns a short-lived link, or the bytes themselves. */
   read(key: string, visibility: Visibility, expiresInSeconds: number): Promise<ReadResult>;
   /** Address of a public file (logos, covers). */
-  publicUrl(key: string): string;
+  publicUrl(key: string, options?: { width?: number }): string;
   remove(key: string, visibility: Visibility): Promise<void>;
 }
 

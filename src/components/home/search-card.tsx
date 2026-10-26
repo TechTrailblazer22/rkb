@@ -17,7 +17,7 @@ const BUDGETS = [
 ];
 
 // A plain GET form: works without JavaScript, and the URL is shareable. The /projects page
-// reads these same parameters once the marketplace ships.
+// reads these same parameters (see lib/search/params.ts).
 export function SearchCard() {
   return (
     <form

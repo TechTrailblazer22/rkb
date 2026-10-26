@@ -23,8 +23,11 @@ export default async function AccountPage() {
             <dd className="font-medium">Buyer</dd>
           </div>
         </dl>
+        <Link href="/account/shortlist" className={`${buttonClass("secondary")} mt-4`}>
+          Saved projects
+        </Link>
         <p className="mt-4 text-sm text-slate-500">
-          Shortlists, enquiries and bookings will appear here as they are released.
+          Enquiries and bookings will appear here as they are released.
         </p>
       </section>
 

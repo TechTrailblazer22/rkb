@@ -15,6 +15,7 @@ import { parsePlotRow } from "@/lib/plots/row";
 import { buildSeries } from "@/lib/plots/series";
 import { requireProjectContext } from "@/lib/projects/context";
 import { PROJECT_FIELDS, parseProjectInput, type FormStep } from "@/lib/projects/fields";
+import { revalidateProjectPages } from "@/lib/projects/revalidate";
 import { createProject, transitionProject } from "@/lib/projects/service";
 import type { ProjectAction } from "@/lib/projects/status";
 import { getStorage } from "@/lib/storage";
@@ -95,6 +96,8 @@ export async function saveProjectStep(
       // Each key and value was produced by the per-field validators in fields.ts.
       data: updates as Prisma.ProjectUpdateInput,
     });
+    // A live project's page shows these edits, so refresh it for buyers.
+    if (ctx.project.status === "LIVE") await revalidateProjectPages(getDb(), projectId);
   }
   return { ok: true, savedAt: new Date().toISOString(), errors };
 }
@@ -163,6 +166,7 @@ export async function saveApproval(formData: FormData) {
     },
   });
   revalidatePath(`/portal/projects/${projectId}`, "layout");
+  await revalidateProjectPages(getDb(), projectId);
   backTo(projectId, "approvals", { saved: kind });
 }
 
@@ -184,6 +188,7 @@ export async function deleteApproval(formData: FormData) {
         .catch(() => {});
   }
   revalidatePath(`/portal/projects/${projectId}`, "layout");
+  await revalidateProjectPages(getDb(), projectId);
   backTo(projectId, "approvals", { saved: "removed" });
 }
 
@@ -208,6 +213,7 @@ export async function setCoverPhoto(formData: FormData) {
     ]);
   }
   revalidatePath(`/portal/projects/${projectId}`, "layout");
+  await revalidateProjectPages(getDb(), projectId);
   backTo(projectId, "media", { saved: "cover" });
 }
 
@@ -237,6 +243,7 @@ export async function deleteMedia(formData: FormData) {
     }
   }
   revalidatePath(`/portal/projects/${projectId}`, "layout");
+  await revalidateProjectPages(getDb(), projectId);
   backTo(projectId, "media", { saved: "removed" });
 }
 
@@ -282,6 +289,7 @@ export async function addPlotAction(formData: FormData) {
   });
   if (!result.ok) backTo(projectId, "plots", { error: result.message });
   revalidatePath(`/portal/projects/${projectId}`, "layout");
+  await revalidateProjectPages(getDb(), projectId);
   backTo(projectId, "plots", { saved: `Plot ${parsed.value.number} added.` });
 }
 
@@ -298,6 +306,7 @@ export async function updatePlotAction(formData: FormData) {
   });
   if (!result.ok) backTo(projectId, "plots", { error: result.message });
   revalidatePath(`/portal/projects/${projectId}`, "layout");
+  await revalidateProjectPages(getDb(), projectId);
   backTo(projectId, "plots", { saved: `Plot ${parsed.value.number} updated.` });
 }
 
@@ -315,6 +324,7 @@ export async function bulkPlotsAction(formData: FormData) {
       actorId: ctx.user.id,
     });
     revalidatePath(`/portal/projects/${projectId}`, "layout");
+    await revalidateProjectPages(getDb(), projectId);
     backTo(projectId, "plots", {
       saved: `${deleted} ${deleted === 1 ? "plot" : "plots"} deleted.`,
     });
@@ -328,6 +338,7 @@ export async function bulkPlotsAction(formData: FormData) {
       via: "bulk",
     });
     revalidatePath(`/portal/projects/${projectId}`, "layout");
+    await revalidateProjectPages(getDb(), projectId);
     backTo(projectId, "plots", {
       saved: `${changed} ${changed === 1 ? "plot" : "plots"} marked ${action.toLowerCase()}${skipped ? ` (${skipped} unchanged)` : ""}.`,
     });
@@ -356,6 +367,7 @@ export async function setPlotStatusAction(
     via: "manual",
   });
   revalidatePath(`/portal/projects/${projectId}`, "layout");
+  await revalidateProjectPages(getDb(), projectId);
   return changed > 0 ? { ok: true, message: "Saved" } : { ok: false, message: "Not changed" };
 }
 
@@ -382,6 +394,7 @@ export async function generateSeriesAction(formData: FormData) {
   });
   if (!result.ok) backTo(projectId, "plots", { error: result.message });
   revalidatePath(`/portal/projects/${projectId}`, "layout");
+  await revalidateProjectPages(getDb(), projectId);
   backTo(projectId, "plots", { saved: `${result.created} plots created.` });
 }
 
@@ -412,6 +425,7 @@ export async function submitProject(
     }),
   });
   revalidatePath(`/portal/projects/${projectId}`, "layout");
+  await revalidateProjectPages(getDb(), projectId);
   backTo(projectId, "review", { saved: "submitted" });
 }
 
@@ -427,6 +441,7 @@ async function simpleTransition(formData: FormData, action: ProjectAction, done:
   if (!result.ok) backTo(projectId, "review", { error: result.message });
   revalidatePath("/portal/projects");
   revalidatePath(`/portal/projects/${projectId}`, "layout");
+  await revalidateProjectPages(getDb(), projectId);
   if (action === "ARCHIVE") redirect("/portal/projects");
   backTo(projectId, "basics", { saved: done });
 }

@@ -60,6 +60,7 @@ export function createLocalStorage(rootDir?: string): StorageDriver {
       }
     },
 
+    // Files on local disk are served as they are, so a requested width is ignored.
     publicUrl(key) {
       return `/api/files/${key.split("/").map(encodeURIComponent).join("/")}`;
     },

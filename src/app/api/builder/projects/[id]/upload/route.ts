@@ -4,6 +4,7 @@ import { recordAudit } from "@/lib/audit";
 import { getApiUser } from "@/lib/auth/session";
 import { entitlementsFor, PLAN_USED_UNTIL_BILLING } from "@/lib/entitlements";
 import { findOwnedProject } from "@/lib/projects/context";
+import { revalidateProjectPages } from "@/lib/projects/revalidate";
 import { approvalDocumentKey, getStorage, projectMediaKey } from "@/lib/storage";
 import { MAX_UPLOAD_BYTES, detectFileType, safeFilename } from "@/lib/storage/sniff";
 import { StorageNotConfiguredError, type StorageDriver } from "@/lib/storage/types";
@@ -117,6 +118,7 @@ export async function POST(
       throw error;
     }
     if (approval.storageKey) await storage.remove(approval.storageKey, "private").catch(() => {});
+    await revalidateProjectPages(db, projectId); // a new document is no longer "verified"
     return json({ ok: true });
   }
 
@@ -169,6 +171,7 @@ export async function POST(
       });
     });
     for (const old of replaced) await storage.remove(old, "public").catch(() => {});
+    await revalidateProjectPages(db, projectId);
     return json({ ok: true, id: created.id, url: storage.publicUrl(key) });
   } catch (error) {
     await storage.remove(key, "public").catch(() => {});

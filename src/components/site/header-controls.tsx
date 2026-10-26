@@ -46,6 +46,9 @@ export function HeaderControls() {
     </>
   ) : loggedIn ? (
     <>
+      <Link href="/account/shortlist" className={buttonClass("onDark")}>
+        Saved
+      </Link>
       <Link href="/dashboard" className={buttonClass("accent")}>
         Dashboard
       </Link>

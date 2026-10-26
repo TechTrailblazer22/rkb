@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { revalidateBuilderPages } from "@/lib/projects/revalidate";
 import { getDb } from "@/lib/db";
 import { recordAudit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth/session";
@@ -187,5 +188,7 @@ export async function decideBuilder(formData: FormData) {
   }
 
   revalidatePath("/admin", "layout");
+  // Approving, suspending or reinstating a builder shows or hides all of their projects.
+  await revalidateBuilderPages(db, builderId);
   back(builderId, { saved: "Decision recorded." });
 }

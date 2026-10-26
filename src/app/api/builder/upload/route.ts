@@ -1,3 +1,4 @@
+import { revalidateBuilderPages } from "@/lib/projects/revalidate";
 import { getDb } from "@/lib/db";
 import { recordAudit } from "@/lib/audit";
 import { getApiUser } from "@/lib/auth/session";
@@ -149,5 +150,6 @@ export async function POST(request: Request) {
     throw error;
   }
   if (previousKey) await storage.remove(previousKey, "public").catch(() => {});
+  await revalidateBuilderPages(db, builder.id);
   return json({ ok: true, url: storage.publicUrl(key) });
 }

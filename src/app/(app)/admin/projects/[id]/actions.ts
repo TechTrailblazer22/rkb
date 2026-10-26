@@ -12,6 +12,7 @@ import {
   projectChangesRequestedMail,
   projectPausedMail,
 } from "@/lib/mail/templates";
+import { revalidateProjectPages } from "@/lib/projects/revalidate";
 import { NOTE_MIN, transitionProject } from "@/lib/projects/service";
 
 function back(projectId: string, params: Record<string, string> = {}): never {
@@ -70,6 +71,7 @@ export async function verifyApproval(formData: FormData) {
     });
   });
   revalidatePath(`/admin/projects/${projectId}`);
+  await revalidateProjectPages(db, projectId);
   back(projectId, { saved: decision === "verify" ? "Approval verified." : "Approval sent back." });
 }
 
@@ -112,5 +114,6 @@ export async function decideProject(formData: FormData) {
     await sendMail({ to: owners, ...projectPausedMail({ ...base, note: note ?? "" }) });
 
   revalidatePath("/admin", "layout");
+  await revalidateProjectPages(getDb(), projectId);
   back(projectId, { saved: "Decision recorded." });
 }

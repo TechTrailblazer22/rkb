@@ -52,7 +52,7 @@ export function createCloudinaryStorage(): StorageDriver {
       return { kind: "redirect", url };
     },
 
-    publicUrl(key) {
+    publicUrl(key, options) {
       const { publicId, format } = split(key);
       // A PDF (a brochure) must stay a PDF. Pictures get f_auto and q_auto so Cloudinary picks
       // the smallest good format for each browser.
@@ -70,6 +70,8 @@ export function createCloudinaryStorage(): StorageDriver {
         type: "upload",
         fetch_format: "auto",
         quality: "auto",
+        // Never larger than asked for, so a phone card does not download a desktop-sized photo.
+        ...(options?.width ? { width: options.width, crop: "limit" } : {}),
       });
     },
 

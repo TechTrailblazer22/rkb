@@ -5,6 +5,7 @@ import { previewPlotRows } from "@/lib/plots/import";
 import { readPlotFile, UnreadableFileError } from "@/lib/plots/read-file";
 import { addPlots } from "@/lib/plots/service";
 import { findOwnedProject } from "@/lib/projects/context";
+import { revalidateProjectPages } from "@/lib/projects/revalidate";
 import { MAX_UPLOAD_BYTES } from "@/lib/storage/sniff";
 
 export const dynamic = "force-dynamic";
@@ -103,5 +104,6 @@ export async function POST(
 
   const result = await addPlots(db, { projectId, actorId: user.id, plots, via: "import" });
   if (!result.ok) return json({ error: result.message }, 409);
+  await revalidateProjectPages(db, projectId);
   return json({ ok: true, created: result.created, skipped: preview.errorCount });
 }

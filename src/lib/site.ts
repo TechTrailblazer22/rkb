@@ -24,6 +24,7 @@ export const PUBLIC_PATHS = [
 export const PRIVATE_PATHS = [
   "/api/",
   "/auth/",
+  "/pwa-icon/",
   "/dashboard",
   "/portal",
   "/admin",

@@ -119,3 +119,31 @@ but only exercised by hand), and the real Cloudinary and Resend services.
 | `node tests/e2e/logged-in-flows.mjs ...` | a server and an empty database |
 | `node tests/e2e/builder-onboarding.mjs ...` | the same, plus local storage and the dev mail folder |
 | `node tests/e2e/projects.mjs ...` | the same, plus the database address |
+
+## Marketplace end-to-end check
+
+Checks the public side: what is and is not public, search and filters, city pages, the project
+and builder pages, structured data, the sitemap and icons, saving projects, sharing, the phone
+layout, and that changes by a builder or the admin show up for buyers at once. The script adds
+builders, projects and plots straight to the database (so it needs an empty one); everything
+buyers, the builder and the admin do goes through the real pages.
+
+```bash
+docker run -d --name rkb-e2e-pg -e POSTGRES_PASSWORD=test -e POSTGRES_DB=rkb_e2e -p 54330:5432 postgres:17-alpine
+DIRECT_URL=postgresql://postgres:test@localhost:54330/rkb_e2e npx prisma migrate deploy
+
+DIR="$TEMP/rkb-mkt-run"; mkdir -p "$DIR"
+SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+export DATABASE_URL=postgresql://postgres:test@localhost:54330/rkb_e2e   AUTH0_DOMAIN=dummy.invalid AUTH0_CLIENT_ID=dummy AUTH0_CLIENT_SECRET=dummy AUTH0_SECRET=$SECRET   ADMIN_EMAILS=admin@test.example APP_BASE_URL=http://localhost:3130 PORT=3130   STORAGE_DRIVER=local LOCAL_STORAGE_DIR="$DIR/storage" MAIL_DRIVER=file MAIL_OUTBOX_DIR="$DIR"
+npm run build        # against the same empty database
+npm start
+
+# second terminal, same variables
+node tests/e2e/marketplace.mjs "$(pwd)" http://localhost:3130 $SECRET "$DATABASE_URL"
+```
+
+Build and start again (and use a new database) for every run: cached pages are stored under
+`.next`, and the script expects to start from "nothing is live yet".
+
+Notes for writing browser checks here: do not rely on Playwright's `networkidle` alone. Next keeps
+prefetching other pages in the background, so the network is often busy for seconds.

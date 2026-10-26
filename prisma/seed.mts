@@ -5,10 +5,13 @@
 //
 // It only ever writes records whose emails end in @seed.example, and running it twice is safe.
 // The seeded documents are database rows only (no real files), so opening them gives a 404.
+// The verified demo builder also gets a few LIVE projects with plots, so the public marketplace
+// (/projects, /project/<slug>, /builder/<slug>) has something to show. They have no photos.
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import type { BuilderStatus, DocumentKind } from "../src/generated/prisma/enums";
+import { plotSortKey } from "../src/lib/plots/sort";
 import { completeGstin } from "../src/lib/validation/identity";
 
 if (process.env.NODE_ENV === "production") {
@@ -183,5 +186,168 @@ for (const demo of DEMOS) {
   console.log(`  created  ${demo.company} (${demo.status})`);
 }
 
+// ---------------------------------------------------------------------------------------
+// LIVE demo projects for the public marketplace
+
+type DemoProject = {
+  slug: string;
+  name: string;
+  type: "PLOTTED" | "FARM_HOUSE" | "RESIDENTIAL" | "COMMERCIAL";
+  stage: "PRE_LAUNCH" | "UNDER_CONSTRUCTION" | "READY_TO_MOVE";
+  city: string;
+  locality: string;
+  pricePerSqft: number;
+  sizes: number[];
+  plots: number;
+  /** Share of plots that are booked, then sold. */
+  booked: number;
+  sold: number;
+  amenities: string[];
+  approvals: ("RERA" | "TNCP")[];
+};
+
+const LIVE_PROJECTS: DemoProject[] = [
+  {
+    slug: "seed-green-valley-enclave",
+    name: "Seed Green Valley Enclave",
+    type: "PLOTTED",
+    stage: "READY_TO_MOVE",
+    city: "Hosur",
+    locality: "Bagalur Road",
+    pricePerSqft: 1850,
+    sizes: [1000, 1200, 1500, 1800],
+    plots: 40,
+    booked: 0.2,
+    sold: 0.3,
+    amenities: ["park", "tar_road", "street_lights", "compound_wall"],
+    approvals: ["RERA", "TNCP"],
+  },
+  {
+    slug: "seed-lakeview-farm-retreat",
+    name: "Seed Lakeview Farm Retreat",
+    type: "FARM_HOUSE",
+    stage: "UNDER_CONSTRUCTION",
+    city: "Hosur",
+    locality: "Denkanikottai",
+    pricePerSqft: 950,
+    sizes: [4400, 5400, 8700],
+    plots: 18,
+    booked: 0.15,
+    sold: 0.1,
+    amenities: ["garden", "tar_road"],
+    approvals: ["TNCP"],
+  },
+  {
+    slug: "seed-skyline-heights",
+    name: "Seed Skyline Heights",
+    type: "RESIDENTIAL",
+    stage: "PRE_LAUNCH",
+    city: "Coimbatore",
+    locality: "Saravanampatti",
+    pricePerSqft: 6200,
+    sizes: [950, 1250, 1600],
+    plots: 24,
+    booked: 0.1,
+    sold: 0,
+    amenities: ["gym", "swimming_pool", "clubhouse"],
+    approvals: ["RERA"],
+  },
+  {
+    slug: "seed-metro-business-park",
+    name: "Seed Metro Business Park",
+    type: "COMMERCIAL",
+    stage: "UNDER_CONSTRUCTION",
+    city: "Chennai",
+    locality: "Guindy",
+    pricePerSqft: 11500,
+    sizes: [450, 800, 1500],
+    plots: 16,
+    booked: 0.25,
+    sold: 0.25,
+    amenities: ["security", "cctv", "ev_charging"],
+    approvals: ["RERA", "TNCP"],
+  },
+];
+
+const liveBuilder = await db.builder.findFirst({
+  where: {
+    status: "VERIFIED",
+    slug: { not: null },
+    members: { some: { user: { auth0Sub: "seed|verified" } } },
+  },
+});
+if (!liveBuilder) {
+  console.log("  (no verified demo builder, so no live demo projects)");
+} else {
+  const verifiedAt = new Date();
+  for (const demo of LIVE_PROJECTS) {
+    if (await db.project.findUnique({ where: { slug: demo.slug } })) {
+      console.log(`  kept     ${demo.name}`);
+      continue;
+    }
+    const prices = demo.sizes.map((size) => size * demo.pricePerSqft);
+    const project = await db.project.create({
+      data: {
+        builderId: liveBuilder.id,
+        slug: demo.slug,
+        status: "LIVE",
+        name: demo.name,
+        type: demo.type,
+        stage: demo.stage,
+        city: demo.city,
+        locality: demo.locality,
+        description: `${demo.name} is demo data created by the seed script.`,
+        totalPlots: demo.plots,
+        pricePerSqft: demo.pricePerSqft,
+        budgetFrom: Math.min(...prices),
+        budgetTo: Math.max(...prices),
+        amenities: demo.amenities,
+        contactName: "Demo Sales Desk",
+        contactMobile: "9876543210",
+        whatsapp: "9876543210",
+        visitingHours: "10 am to 6 pm, every day",
+        submittedAt: verifiedAt,
+        reviewedAt: verifiedAt,
+        publishedAt: verifiedAt,
+        approvals: {
+          create: demo.approvals.map((kind) => ({
+            kind,
+            number: kind === "RERA" ? "TN/29/Layout/0001/2024" : "DTCP 123/2024",
+            verified: true,
+            verifiedAt,
+          })),
+        },
+      },
+    });
+    const bookedCount = Math.round(demo.plots * demo.booked);
+    const soldCount = Math.round(demo.plots * demo.sold);
+    await db.plot.createMany({
+      data: Array.from({ length: demo.plots }, (_, i) => {
+        const number = `A-${i + 1}`;
+        const size = demo.sizes[i % demo.sizes.length];
+        return {
+          projectId: project.id,
+          number,
+          sortKey: plotSortKey(number),
+          sizeSqft: size,
+          facing: (["EAST", "NORTH", "WEST", "SOUTH"] as const)[i % 4],
+          isCorner: i % 7 === 0,
+          price: size * demo.pricePerSqft,
+          ratePerSqft: demo.pricePerSqft,
+          status:
+            i < soldCount
+              ? ("SOLD" as const)
+              : i < soldCount + bookedCount
+                ? ("BOOKED" as const)
+                : ("AVAILABLE" as const),
+        };
+      }),
+    });
+    console.log(`  created  ${demo.name} (LIVE, ${demo.plots} plots)`);
+  }
+}
+
 await db.$disconnect();
-console.log("Done. Log in as an admin to see them in /admin/builders.");
+console.log(
+  "Done. Log in as an admin to see the builders in /admin/builders; the live demo projects are at /projects.",
+);

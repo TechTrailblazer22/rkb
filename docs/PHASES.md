@@ -360,3 +360,33 @@ Deferred, on purpose:
 - **Drag-to-reorder photos.** Photos can be given a cover and removed.
 - **Duplicate project and copy-from-previous.**
 - **Automatic pausing of expired approvals.** An expired approval already blocks submitting and is flagged; the nightly pause arrives with the scheduled jobs in Phase 6.
+
+## Phase 5 status (built)
+
+Delivered:
+- **Search** at `/projects`, `/projects/[city]` and `/projects/[city]/[type]`. Every filter lives in the address (search words, type, stage, budget, plot size, facing, approval, verified approvals only, amenities, sort, page), so a result can be shared, bookmarked and reached with the back button. The filter panel is a plain HTML form (works without JavaScript) that folds away on a phone. Price, size and availability are worked out from the live plots at the moment of the search, so a result can never disagree with the project page.
+- **Project page** `/project/[slug]`: photo gallery with a full-screen viewer (arrow keys, Escape), a contact card that becomes a pinned bar on a phone, tabs that jump to sections, the live plot table (status chips with counts, plot search, show more), amenities, an approvals panel that says "Verified on {date}", pricing details, a link to the map, the builder card, and similar projects. It is the same component the builder's preview and the admin's review use.
+- **Builder page** `/builder/[slug]` (only the public fields; PAN, GSTIN, address and phone are never sent).
+- **Home** reads real projects and cities; until something is live it shows labelled sample cards.
+- **Saved projects** (login needed): heart on cards and project pages, `/account/shortlist`, and a "Saved" link in the header. **Recently viewed** is kept in the visitor's own browser only. **Share** opens the phone's share sheet, or WhatsApp where there is none.
+- **Caching:** project, builder and home pages are cached (`revalidate` of 2 and 5 minutes) and are refreshed straight away when a builder or the admin changes anything buyers can see (plot status, photos, details, approvals, pause or resume, a builder being verified or suspended). The hooks are in `src/lib/projects/revalidate.ts`.
+- **SEO:** page titles and descriptions, canonical addresses, `noindex` for every filtered, sorted or paged variation (the plain city and type pages are indexed), JSON-LD (product and breadcrumbs on projects, organisation on builders), a sitemap that lists every public project, builder, city and city-and-type page, and real `404` answers for things that do not exist or are not public.
+- **Installable app:** web manifest, 192/512 and Apple icons. There is no service worker, on purpose: live availability needs a connection.
+- **Performance:** images use Cloudinary's automatic format and quality with a width per use (640 px on cards, 320 px thumbnails, 1200 px in the gallery), and are lazy loaded. There is no loading skeleton on the list: a `loading.tsx` file makes Next stream the page title and description into the body instead of the head, and makes a missing city answer `200` instead of `404`. The queries take a few milliseconds. With local file storage in development, files are served as uploaded.
+- `npm run db:seed -- --yes` now also creates four LIVE demo projects (with plots and verified approvals) under the verified demo builder, so the marketplace has something to show locally.
+
+Checked with Lighthouse 12 (mobile settings, against a production build with seeded data): project page, list page and builder page score **100** for SEO, accessibility and best practices, with no layout shift. Performance was 83 to 94 on a laptop with the Next server running locally and no CDN; the slowest part is the largest image, which Cloudinary resizes in production. Re-measure on the Render URL once real photos exist.
+
+What is public: a project is visible to the world only when it is **LIVE** and its builder is **VERIFIED**. That rule lives in two places that are tested against each other (`src/lib/search/public.ts` and the search SQL).
+
+Differences from the original plan:
+- **No locality table or trigram index.** City and locality are still free text, and search uses case-insensitive matching on the project name, locality, city and company name. Cities are merged by spelling ("coimbatore" and "Coimbatore" are one page). Add `pg_trgm` indexes when the number of projects makes searches slow.
+- **No list/map toggle.** There is a link to the builder's map pin on each project, but no map of results (it needs map tiles and coordinates).
+- **No "progress updates" feed** on the project page, only the percent complete.
+- **Phone and WhatsApp buttons** show only when the builder chose to show their number. Otherwise the card says enquiries go through RKB, and the enquiry form itself is Phase 6.
+- **Full-text search** is not used; words are matched against name, locality, city and company.
+
+Deferred, on purpose:
+- Enquiry form, alerts for saved searches, price-drop notifications (Phase 6).
+- Reviews and ratings (Phase 9).
+- Locality autocomplete and a map of results.

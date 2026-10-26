@@ -41,8 +41,15 @@ export type ProjectViewData = {
     visitingHours: string | null;
     hideContactNumber: boolean;
   };
-  builder: { companyName: string | null; verified: boolean; logoUrl: string | null };
-  photos: { id: string; url: string; isCover: boolean }[];
+  builder: {
+    id: string;
+    companyName: string | null;
+    slug: string | null;
+    verified: boolean;
+    logoUrl: string | null;
+    yearEstablished: number | null;
+  };
+  photos: { id: string; url: string; thumbUrl: string; isCover: boolean }[];
   layoutUrl: string | null;
   brochureUrl: string | null;
   approvals: {
@@ -51,6 +58,7 @@ export type ProjectViewData = {
     number: string | null;
     validTill: Date | null;
     verified: boolean;
+    verifiedAt: Date | null;
   }[];
   plots: {
     id: string;
@@ -69,14 +77,26 @@ export type ProjectViewData = {
   sizeTo: number | null;
 };
 
-const PREVIEW_PLOTS = 60;
+const DEFAULT_PLOTS = 60;
 
-export async function loadProjectView(projectId: string): Promise<ProjectViewData | null> {
+export async function loadProjectView(
+  projectId: string,
+  options: { plotLimit?: number } = {},
+): Promise<ProjectViewData | null> {
   const db = getDb();
   const project = await db.project.findUnique({
     where: { id: projectId },
     include: {
-      builder: { select: { companyName: true, status: true, logoKey: true } },
+      builder: {
+        select: {
+          id: true,
+          companyName: true,
+          status: true,
+          logoKey: true,
+          slug: true,
+          yearEstablished: true,
+        },
+      },
       approvals: { orderBy: { kind: "asc" } },
       media: { orderBy: [{ isCover: "desc" }, { createdAt: "asc" }] },
     },
@@ -84,7 +104,11 @@ export async function loadProjectView(projectId: string): Promise<ProjectViewDat
   if (!project) return null;
 
   const [plots, plotCounts, aggregate] = await Promise.all([
-    db.plot.findMany({ where: { projectId }, orderBy: { sortKey: "asc" }, take: PREVIEW_PLOTS }),
+    db.plot.findMany({
+      where: { projectId },
+      orderBy: { sortKey: "asc" },
+      take: options.plotLimit ?? DEFAULT_PLOTS,
+    }),
     plotCountsByStatus(db, projectId),
     db.plot.aggregate({
       where: { projectId },
@@ -96,8 +120,9 @@ export async function loadProjectView(projectId: string): Promise<ProjectViewDat
   const photos = project.media
     .filter((m) => m.kind === "PHOTO")
     .flatMap((m) => {
-      const url = safePublicUrl(m.storageKey);
-      return url ? [{ id: m.id, url, isCover: m.isCover }] : [];
+      const url = safePublicUrl(m.storageKey, 1200);
+      const thumbUrl = safePublicUrl(m.storageKey, 320);
+      return url && thumbUrl ? [{ id: m.id, url, thumbUrl, isCover: m.isCover }] : [];
     });
   const fileUrl = (kind: "LAYOUT" | "BROCHURE") => {
     const item = project.media.find((m) => m.kind === kind);
@@ -107,9 +132,12 @@ export async function loadProjectView(projectId: string): Promise<ProjectViewDat
   return {
     project,
     builder: {
+      id: project.builder.id,
       companyName: project.builder.companyName,
+      slug: project.builder.slug,
       verified: project.builder.status === "VERIFIED",
-      logoUrl: safePublicUrl(project.builder.logoKey),
+      logoUrl: safePublicUrl(project.builder.logoKey, 96),
+      yearEstablished: project.builder.yearEstablished,
     },
     photos,
     layoutUrl: fileUrl("LAYOUT"),
@@ -120,6 +148,7 @@ export async function loadProjectView(projectId: string): Promise<ProjectViewDat
       number: a.number,
       validTill: a.validTill,
       verified: a.verified,
+      verifiedAt: a.verifiedAt,
     })),
     plots,
     plotCounts,

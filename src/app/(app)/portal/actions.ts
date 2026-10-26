@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { revalidateBuilderPages } from "@/lib/projects/revalidate";
 import { getDb } from "@/lib/db";
 import { recordAudit } from "@/lib/audit";
 import { parseAdminEmails } from "@/lib/auth/roles";
@@ -31,6 +32,8 @@ export async function saveProfile(input: Record<string, string>): Promise<SavePr
       // Every key and value here was produced by the per-field validators in profile.ts.
       data: updates as Prisma.BuilderUpdateInput,
     });
+    // A verified builder's public page shows the profile, so refresh it.
+    if (ctx.builder.status === "VERIFIED") await revalidateBuilderPages(getDb(), ctx.builder.id);
   }
   return { ok: true, savedAt: new Date().toISOString(), errors };
 }

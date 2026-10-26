@@ -1,8 +1,11 @@
-import { BadgeCheck, MapPin, Phone, MessageCircle } from "lucide-react";
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { BadgeCheck, MapPin, MessageCircle, Phone } from "lucide-react";
+import { Gallery } from "@/components/public/gallery";
+import { PlotTable, type PublicPlot } from "@/components/public/plot-table";
+import { FACING_OPTIONS } from "@/components/project/steps/plot-fields";
 import { Badge, VerifiedBadge } from "@/components/ui/badge";
 import { PlotGridArt } from "@/components/ui/plot-grid-art";
-import { PlotLegend, PlotStatusChip } from "@/components/ui/plot-status";
-import { FACING_OPTIONS } from "@/components/project/steps/plot-fields";
 import { amenityLabel } from "@/lib/projects/amenities";
 import { PROJECT_STAGES, PROJECT_TYPES } from "@/lib/projects/fields";
 import type { ProjectViewData } from "@/lib/projects/view";
@@ -12,10 +15,17 @@ import { youTubeEmbedUrl, parseYouTubeId } from "@/lib/projects/video";
 const label = (list: { value: string; label: string }[], value: string) =>
   list.find((item) => item.value === value)?.label ?? value;
 
-const formatDay = (date: Date) =>
+const formatMonth = (date: Date) =>
   new Intl.DateTimeFormat("en-IN", { month: "short", year: "numeric", timeZone: "UTC" }).format(
     date,
   );
+const formatDay = (date: Date) =>
+  new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).format(date);
 
 const APPROVAL_LABEL: Record<string, string> = {
   RERA: "RERA",
@@ -25,19 +35,100 @@ const APPROVAL_LABEL: Record<string, string> = {
   OTHER: "Approval",
 };
 
+const SECTIONS = [
+  { id: "overview", label: "Overview" },
+  { id: "plots", label: "Plots" },
+  { id: "approvals", label: "Approvals" },
+  { id: "pricing", label: "Pricing" },
+  { id: "builder", label: "Builder" },
+] as const;
+
+export function priceText(from: number | null, to: number | null): string | null {
+  if (from === null) return null;
+  return `${formatRupeesCompact(from)}${to !== null && to !== from ? ` to ${formatRupeesCompact(to)}` : ""}`;
+}
+
+/** Ten digits for tel: and wa.me links, whatever way the builder typed the number. */
+const tenDigits = (value: string) => value.replace(/\D/g, "").slice(-10);
+
+/** The number to ring or message, or null when the builder prefers enquiries to come through RKB. */
+function contactDetails(project: ProjectViewData["project"]) {
+  if (project.hideContactNumber || !project.contactMobile) return null;
+  const phone = tenDigits(project.contactMobile);
+  if (phone.length !== 10) return null;
+  return { phone, whatsapp: tenDigits(project.whatsapp ?? project.contactMobile) };
+}
+
+function ContactButtons({
+  name,
+  contact,
+  compact,
+}: {
+  name: string;
+  contact: NonNullable<ReturnType<typeof contactDetails>>;
+  compact?: boolean;
+}) {
+  const text = `Hello, I am interested in ${name}. I found it on RKB Platform.`;
+  const size = compact ? "px-3 py-2.5" : "px-4 py-3";
+  return (
+    <div className={compact ? "grid grid-cols-2 gap-2" : "grid gap-2"}>
+      <a
+        href={`tel:+91${contact.phone}`}
+        data-testid="call-builder"
+        className={`flex items-center justify-center gap-2 rounded-lg bg-teal-700 text-sm font-semibold text-white hover:bg-teal-700/90 ${size}`}
+      >
+        <Phone className="size-4" aria-hidden="true" /> {compact ? "Call" : `Call ${contact.phone}`}
+      </a>
+      <a
+        href={`https://wa.me/91${contact.whatsapp}?text=${encodeURIComponent(text)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        data-testid="whatsapp-builder"
+        className={`flex items-center justify-center gap-2 rounded-lg border border-teal-700 text-sm font-semibold text-teal-700 hover:bg-teal-50 ${size}`}
+      >
+        <MessageCircle className="size-4" aria-hidden="true" /> WhatsApp
+      </a>
+    </div>
+  );
+}
+
 /**
  * What a buyer sees on a project's page. One component for the builder's preview, the admin's
- * review and the public page, so they can never drift apart.
+ * review and the public page, so they can never drift apart. `mode` only changes the contact
+ * card: a preview cannot be used to contact anyone.
  */
-export function ProjectView({ data }: { data: ProjectViewData }) {
+export function ProjectView({
+  data,
+  mode = "preview",
+  actions,
+}: {
+  data: ProjectViewData;
+  mode?: "preview" | "public";
+  /** Buttons under the title, such as Save and Share. */
+  actions?: ReactNode;
+}) {
   const { project, builder, photos, plots, plotCounts, approvals } = data;
-  const cover = photos.find((p) => p.isCover) ?? photos[0];
-  const others = photos.filter((p) => p !== cover).slice(0, 4);
+  const isPublic = mode === "public";
   const location = [project.locality, project.city].filter(Boolean).join(", ");
   const verifiedApproval = approvals.some(
     (a) => a.verified && a.kind !== "BANK_LOAN" && a.kind !== "OTHER",
   );
   const videoId = project.videoUrl ? parseYouTubeId(project.videoUrl) : null;
+  const price = priceText(data.priceFrom, data.priceTo);
+  const contact = isPublic ? contactDetails(project) : null;
+
+  const publicPlots: PublicPlot[] = plots.map((plot) => ({
+    id: plot.id,
+    number: plot.number,
+    sizeSqft: plot.sizeSqft,
+    dimensions: plot.dimensions,
+    facing: plot.facing
+      ? (FACING_OPTIONS.find((option) => option.value === plot.facing)?.label ?? null)
+      : null,
+    isCorner: plot.isCorner,
+    price: plot.price,
+    status: plot.status === "HELD" ? "BOOKED" : plot.status,
+  }));
 
   const facts: [string, string | null][] = [
     ["Project size", project.acres !== null ? `${project.acres} acres` : null],
@@ -58,63 +149,35 @@ export function ProjectView({ data }: { data: ProjectViewData }) {
     ["Phases", project.phasesCount !== null ? String(project.phasesCount) : null],
     ["Land use", project.landUse],
     ["Title", project.titleStatus],
-    ["Possession", project.completionDate ? formatDay(project.completionDate) : null],
+    ["Possession", project.completionDate ? formatMonth(project.completionDate) : null],
   ];
 
-  return (
-    <article className="grid gap-8 lg:grid-cols-[1fr_320px]">
-      <div className="min-w-0 space-y-8">
-        {/* gallery */}
-        <div className="grid gap-2 sm:grid-cols-[2fr_1fr]">
-          <div className="bg-navy-900 relative aspect-[4/3] overflow-hidden rounded-2xl sm:row-span-2 sm:aspect-[16/10]">
-            {cover ? (
-              // eslint-disable-next-line @next/next/no-img-element -- builder-supplied image, sized by CSS
-              <img
-                src={cover.url}
-                alt={`${project.name}, cover photo`}
-                className="size-full object-cover"
-              />
-            ) : (
-              <div className="flex size-full items-center justify-center p-8">
-                <PlotGridArt
-                  seed={7}
-                  cols={10}
-                  rows={5}
-                  availableRatio={0.6}
-                  className="w-full max-w-md"
-                />
-              </div>
-            )}
-          </div>
-          {others.slice(0, 2).map((photo) => (
-            // eslint-disable-next-line @next/next/no-img-element -- builder-supplied image, sized by CSS
-            <img
-              key={photo.id}
-              src={photo.url}
-              alt={`${project.name}, photo`}
-              loading="lazy"
-              className="hidden aspect-[16/10] w-full rounded-2xl object-cover sm:block"
-            />
-          ))}
-        </div>
-        {photos.length > 3 && (
-          <ul className="-mt-4 flex gap-2 overflow-x-auto pb-1" aria-label="More photos">
-            {photos.slice(1).map((photo) => (
-              <li key={photo.id} className="shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element -- builder-supplied image, sized by CSS */}
-                <img
-                  src={photo.url}
-                  alt=""
-                  loading="lazy"
-                  className="h-20 w-28 rounded-lg object-cover"
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+  const hasPricing = Boolean(
+    project.paymentPlan || project.additionalCharges || project.offers || project.tokenAmount,
+  );
 
-        {/* headline */}
-        <header>
+  return (
+    <article
+      className={`grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] ${isPublic ? "pb-20 lg:pb-0" : ""}`}
+    >
+      <div className="min-w-0 space-y-8">
+        <Gallery
+          photos={photos}
+          name={project.name}
+          fallback={
+            <div className="flex aspect-[16/9] items-center justify-center p-8">
+              <PlotGridArt
+                seed={7}
+                cols={10}
+                rows={5}
+                availableRatio={0.6}
+                className="w-full max-w-md"
+              />
+            </div>
+          }
+        />
+
+        <header id="overview" className="scroll-mt-28">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="navy">{label(PROJECT_TYPES, project.type)}</Badge>
             <Badge tone="amber">{label(PROJECT_STAGES, project.stage)}</Badge>
@@ -126,7 +189,7 @@ export function ProjectView({ data }: { data: ProjectViewData }) {
           </div>
           <h1 className="mt-3 text-3xl font-extrabold tracking-tight">{project.name}</h1>
           {location && (
-            <p className="mt-1 flex items-center gap-1 text-slate-600">
+            <p className="mt-1 flex flex-wrap items-center gap-1 text-slate-600">
               <MapPin className="size-4" aria-hidden="true" />
               {location}
               {project.mapUrl && (
@@ -142,21 +205,34 @@ export function ProjectView({ data }: { data: ProjectViewData }) {
             </p>
           )}
           <div className="mt-4 flex flex-wrap items-end gap-x-6 gap-y-1">
-            {data.priceFrom !== null && (
-              <p className="text-2xl font-extrabold">
-                {formatRupeesCompact(data.priceFrom)}
-                {data.priceTo !== null &&
-                  data.priceTo !== data.priceFrom &&
-                  ` to ${formatRupeesCompact(data.priceTo)}`}
-              </p>
-            )}
+            {price && <p className="text-2xl font-extrabold">{price}</p>}
             {project.pricePerSqft !== null && (
               <p className="text-slate-600">{formatRupees(project.pricePerSqft)} per sq ft</p>
             )}
           </div>
+          {actions && <div className="mt-4 flex flex-wrap gap-3">{actions}</div>}
         </header>
 
-        {/* key facts */}
+        {isPublic && (
+          <nav
+            aria-label="On this page"
+            className="sticky top-16 z-20 -mx-4 overflow-x-auto border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:mx-0 sm:px-0"
+          >
+            <ul className="flex min-w-max gap-1">
+              {SECTIONS.filter((s) => s.id !== "plots" || publicPlots.length > 0).map((section) => (
+                <li key={section.id}>
+                  <a
+                    href={`#${section.id}`}
+                    className="block px-4 py-3 text-sm font-semibold text-slate-700 hover:text-teal-700"
+                  >
+                    {section.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
+
         <section aria-labelledby="facts-heading">
           <h2 id="facts-heading" className="sr-only">
             Key facts
@@ -166,7 +242,7 @@ export function ProjectView({ data }: { data: ProjectViewData }) {
               .filter(([, value]) => value)
               .map(([name, value]) => (
                 <div key={name} className="bg-surface rounded-xl px-4 py-3">
-                  <dt className="text-xs text-slate-500">{name}</dt>
+                  <dt className="text-xs text-slate-600">{name}</dt>
                   <dd className="font-bold">{value}</dd>
                 </div>
               ))}
@@ -195,72 +271,25 @@ export function ProjectView({ data }: { data: ProjectViewData }) {
           </section>
         )}
 
-        {plots.length > 0 && (
-          <section>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-bold">Plots and availability</h2>
-              <PlotLegend />
+        {publicPlots.length > 0 && (
+          <section id="plots" className="scroll-mt-28">
+            <h2 className="text-xl font-bold">Plots and availability</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Updated by the builder as plots are booked and sold.
+            </p>
+            <div className="mt-4">
+              <PlotTable plots={publicPlots} total={plotCounts.total} />
             </div>
-            <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full min-w-[520px] text-left text-sm">
-                <caption className="sr-only">Plot availability</caption>
-                <thead className="bg-surface border-b border-slate-200 text-xs text-slate-600 uppercase">
-                  <tr>
-                    <th scope="col" className="px-4 py-3">
-                      Plot
-                    </th>
-                    <th scope="col" className="px-4 py-3">
-                      Size
-                    </th>
-                    <th scope="col" className="px-4 py-3">
-                      Facing
-                    </th>
-                    <th scope="col" className="px-4 py-3">
-                      Price
-                    </th>
-                    <th scope="col" className="px-4 py-3">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {plots.map((plot) => (
-                    <tr key={plot.id}>
-                      <td className="px-4 py-2.5 font-semibold">
-                        {plot.number}
-                        {plot.isCorner && " (corner)"}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {plot.sizeSqft.toLocaleString("en-IN")} sq ft
-                        {plot.dimensions ? `, ${plot.dimensions}` : ""}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {plot.facing
-                          ? FACING_OPTIONS.find((o) => o.value === plot.facing)?.label
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {plot.price ? formatRupees(plot.price) : "On request"}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <PlotStatusChip status={plot.status === "HELD" ? "BOOKED" : plot.status} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {plotCounts.total > plots.length && (
-              <p className="mt-2 text-sm text-slate-500">
-                Showing {plots.length} of {plotCounts.total} plots.
-              </p>
-            )}
           </section>
         )}
 
-        {approvals.length > 0 && (
-          <section>
-            <h2 className="text-xl font-bold">Approvals</h2>
+        <section id="approvals" className="scroll-mt-28">
+          <h2 className="text-xl font-bold">Approvals</h2>
+          {approvals.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-600">
+              The builder has not listed any approvals yet.
+            </p>
+          ) : (
             <ul className="mt-3 space-y-2">
               {approvals.map((approval) => (
                 <li
@@ -270,36 +299,41 @@ export function ProjectView({ data }: { data: ProjectViewData }) {
                   <span className="font-bold">
                     {APPROVAL_LABEL[approval.kind] ?? approval.kind}
                   </span>
-                  <span>{approval.number}</span>
+                  {approval.number && <span>{approval.number}</span>}
                   {approval.validTill && (
                     <span className="text-slate-500">
-                      valid until {formatDay(approval.validTill)}
+                      valid until {formatMonth(approval.validTill)}
                     </span>
                   )}
                   {approval.verified ? (
                     <Badge tone="teal">
-                      <BadgeCheck className="size-3.5" aria-hidden="true" /> Verified
+                      <BadgeCheck className="size-3.5" aria-hidden="true" />
+                      Verified{approval.verifiedAt ? ` on ${formatDay(approval.verifiedAt)}` : ""}
                     </Badge>
                   ) : (
-                    <span className="text-xs text-slate-500">Not yet verified</span>
+                    <span className="text-xs text-slate-500">Not yet verified by RKB</span>
                   )}
                 </li>
               ))}
             </ul>
-            {project.bankLoans.length > 0 && (
-              <p className="mt-3 text-sm text-slate-600">
-                Loans available from: {project.bankLoans.join(", ")}
-              </p>
-            )}
-          </section>
-        )}
+          )}
+          {project.bankLoans.length > 0 && (
+            <p className="mt-3 text-sm text-slate-600">
+              Loans available from: {project.bankLoans.join(", ")}
+            </p>
+          )}
+          {approvals.length > 0 && (
+            <p className="mt-3 text-xs text-slate-500">
+              &ldquo;Verified&rdquo; means RKB compared the number with the certificate the builder
+              uploaded, on the date shown. It is not a guarantee of title. Always check the original
+              documents before you pay.
+            </p>
+          )}
+        </section>
 
-        {(project.paymentPlan ||
-          project.additionalCharges ||
-          project.offers ||
-          project.tokenAmount) && (
-          <section>
-            <h2 className="text-xl font-bold">Pricing details</h2>
+        <section id="pricing" className="scroll-mt-28">
+          <h2 className="text-xl font-bold">Pricing details</h2>
+          {hasPricing ? (
             <dl className="mt-3 space-y-3 text-sm">
               {project.tokenAmount !== null && (
                 <div>
@@ -328,8 +362,12 @@ export function ProjectView({ data }: { data: ProjectViewData }) {
                 </div>
               )}
             </dl>
-          </section>
-        )}
+          ) : (
+            <p className="mt-3 text-sm text-slate-600">
+              Ask the builder for the payment plan and charges.
+            </p>
+          )}
+        </section>
 
         {project.percentComplete !== null && (
           <section>
@@ -395,12 +433,11 @@ export function ProjectView({ data }: { data: ProjectViewData }) {
         )}
       </div>
 
-      {/* contact card */}
-      <aside className="lg:sticky lg:top-24 lg:self-start">
+      <aside id="builder" className="scroll-mt-28 lg:sticky lg:top-24 lg:self-start">
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
             {builder.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- builder-supplied image, sized by CSS
+              // eslint-disable-next-line @next/next/no-img-element -- builder logo, sized by CSS
               <img src={builder.logoUrl} alt="" className="size-12 rounded-lg object-cover" />
             ) : (
               <span
@@ -411,33 +448,40 @@ export function ProjectView({ data }: { data: ProjectViewData }) {
               </span>
             )}
             <div className="min-w-0">
-              <p className="truncate font-bold">{builder.companyName ?? "Builder"}</p>
+              {isPublic && builder.slug ? (
+                <Link
+                  href={`/builder/${builder.slug}`}
+                  className="block truncate font-bold hover:underline"
+                >
+                  {builder.companyName}
+                </Link>
+              ) : (
+                <p className="truncate font-bold">{builder.companyName ?? "Builder"}</p>
+              )}
               {builder.verified && <VerifiedBadge />}
             </div>
           </div>
-
-          {data.priceFrom !== null && (
-            <p className="text-lg font-extrabold">
-              {formatRupeesCompact(data.priceFrom)}
-              {data.priceTo !== null &&
-                data.priceTo !== data.priceFrom &&
-                ` to ${formatRupeesCompact(data.priceTo)}`}
-            </p>
+          {builder.yearEstablished && (
+            <p className="text-sm text-slate-600">In business since {builder.yearEstablished}</p>
           )}
+
+          {price && <p className="text-lg font-extrabold">{price}</p>}
 
           <div className="space-y-1 text-sm">
             {project.contactName && <p className="font-semibold">{project.contactName}</p>}
-            {project.hideContactNumber ? (
-              <p className="text-slate-600">Contact through RKB</p>
-            ) : (
-              project.contactMobile && (
-                <p className="flex items-center gap-2 text-slate-700">
-                  <Phone className="size-4" aria-hidden="true" />
-                  {project.contactMobile}
-                </p>
-              )
-            )}
-            {project.whatsapp && !project.hideContactNumber && (
+            {/* The builder's own preview and the admin's review show what will be public. */}
+            {!isPublic &&
+              (project.hideContactNumber ? (
+                <p className="text-slate-600">Contact through RKB</p>
+              ) : (
+                project.contactMobile && (
+                  <p className="flex items-center gap-2 text-slate-700">
+                    <Phone className="size-4" aria-hidden="true" />
+                    {project.contactMobile}
+                  </p>
+                )
+              ))}
+            {!isPublic && !project.hideContactNumber && project.whatsapp && (
               <p className="flex items-center gap-2 text-slate-700">
                 <MessageCircle className="size-4" aria-hidden="true" />
                 WhatsApp {project.whatsapp}
@@ -448,16 +492,44 @@ export function ProjectView({ data }: { data: ProjectViewData }) {
             )}
           </div>
 
-          <button
-            type="button"
-            disabled
-            className="w-full cursor-not-allowed rounded-lg bg-teal-700 px-4 py-3 text-sm font-semibold text-white opacity-60"
-          >
-            Contact builder
-          </button>
-          <p className="text-xs text-slate-500">Enquiries open when the marketplace launches.</p>
+          {contact ? (
+            <ContactButtons name={project.name} contact={contact} />
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled
+                className="w-full cursor-not-allowed rounded-lg bg-teal-700 px-4 py-3 text-sm font-semibold text-white opacity-60"
+              >
+                Contact builder
+              </button>
+              <p className="text-xs text-slate-500">
+                {isPublic
+                  ? "This builder takes enquiries through RKB. The enquiry form opens soon."
+                  : "Buyers will contact you from here once the project is live."}
+              </p>
+            </>
+          )}
         </div>
       </aside>
+
+      {isPublic && (
+        <div
+          className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:hidden"
+          data-testid="mobile-contact-bar"
+        >
+          {contact ? (
+            <ContactButtons name={project.name} contact={contact} compact />
+          ) : (
+            <a
+              href="#builder"
+              className="block rounded-lg bg-teal-700 px-4 py-2.5 text-center text-sm font-semibold text-white"
+            >
+              Contact the builder
+            </a>
+          )}
+        </div>
+      )}
     </article>
   );
 }

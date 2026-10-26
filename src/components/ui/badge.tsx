@@ -5,7 +5,7 @@ type Tone = "neutral" | "teal" | "amber" | "navy";
 
 const tones: Record<Tone, string> = {
   neutral: "bg-surface text-navy-900",
-  teal: "bg-teal-50 text-teal-700",
+  teal: "bg-teal-50 text-teal-800",
   amber: "bg-amber-50 text-amber-700",
   navy: "bg-navy-900 text-white",
 };
