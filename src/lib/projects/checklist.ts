@@ -1,8 +1,11 @@
 import type { ApprovalKind } from "@/generated/prisma/enums";
 import type { StepSlug } from "@/lib/projects/fields";
 
-// What a project needs before it can be submitted ("required"), and what makes a listing better
-// without being necessary ("recommended"). The score weighs required items three times as much.
+// What makes a listing complete. Nothing is mandatory: a project can be submitted, and approved,
+// at any level of completeness, and the score only tells the builder how far along it is. Set an
+// item's `required` flag to true to make it a condition of submitting and approving again; the
+// score then weighs required items three times as much. Contradictions between filled-in values
+// ("problems" below) still block, because they are mistakes rather than missing information.
 
 export const MIN_DESCRIPTION = 50;
 export const MIN_PHOTOS = 3;
@@ -85,34 +88,34 @@ export function buildProjectChecklist(input: ChecklistInput): ProjectChecklist {
   ): ChecklistItem => ({ key, step, label, required, done });
 
   const items: ChecklistItem[] = [
-    item("name", "basics", "Project name", true, filled(p.name)),
-    item("city", "basics", "City", true, filled(p.city)),
-    item("locality", "basics", "Locality", true, filled(p.locality)),
-    item("addressLine", "basics", "Site address", true, filled(p.addressLine)),
+    item("name", "basics", "Project name", false, filled(p.name)),
+    item("city", "basics", "City", false, filled(p.city)),
+    item("locality", "basics", "Locality", false, filled(p.locality)),
+    item("addressLine", "basics", "Site address", false, filled(p.addressLine)),
     item(
       "description",
       "basics",
       `Description (at least ${MIN_DESCRIPTION} characters)`,
-      true,
+      false,
       (p.description ?? "").trim().length >= MIN_DESCRIPTION,
     ),
     item("mapUrl", "basics", "Map link", false, filled(p.mapUrl)),
 
-    item("totalPlots", "layout", "Total number of plots or units", true, p.totalPlots !== null),
+    item("totalPlots", "layout", "Total number of plots or units", false, p.totalPlots !== null),
     item("acres", "layout", "Project size in acres", false, p.acres !== null),
     item("openArea", "layout", "Open area percentage", false, p.openAreaPercent !== null),
 
-    item("plots", "plots", "At least one plot or unit", true, input.plotCount > 0),
+    item("plots", "plots", "At least one plot or unit", false, input.plotCount > 0),
 
     item(
       "approval",
       "approvals",
       "At least one approval with its number (RERA, TNCP or municipal)",
-      true,
+      false,
       usableApprovals.length > 0,
     ),
-    item("landUse", "approvals", "Land use", true, filled(p.landUse)),
-    item("titleStatus", "approvals", "Title status", true, filled(p.titleStatus)),
+    item("landUse", "approvals", "Land use", false, filled(p.landUse)),
+    item("titleStatus", "approvals", "Title status", false, filled(p.titleStatus)),
 
     item("startDate", "timeline", "Start date", false, p.startDate !== null),
     item("completionDate", "timeline", "Expected completion", false, p.completionDate !== null),
@@ -122,7 +125,7 @@ export function buildProjectChecklist(input: ChecklistInput): ProjectChecklist {
       "price",
       "pricing",
       "A price: either a price per sq ft or prices on your plots",
-      true,
+      false,
       p.pricePerSqft !== null || input.pricedPlotCount > 0,
     ),
     item("tokenAmount", "pricing", "Token amount", false, p.tokenAmount !== null),
@@ -136,13 +139,13 @@ export function buildProjectChecklist(input: ChecklistInput): ProjectChecklist {
       p.amenities.length >= MIN_AMENITIES,
     ),
 
-    item("photos", "media", `At least ${MIN_PHOTOS} photos`, true, input.photoCount >= MIN_PHOTOS),
+    item("photos", "media", `At least ${MIN_PHOTOS} photos`, false, input.photoCount >= MIN_PHOTOS),
     item("layout", "media", "Layout plan", false, input.hasLayout),
     item("brochure", "media", "Brochure", false, input.hasBrochure),
     item("video", "media", "Video", false, filled(p.videoUrl)),
 
-    item("contactName", "contact", "Contact person", true, filled(p.contactName)),
-    item("contactMobile", "contact", "Contact mobile", true, filled(p.contactMobile)),
+    item("contactName", "contact", "Contact person", false, filled(p.contactName)),
+    item("contactMobile", "contact", "Contact mobile", false, filled(p.contactMobile)),
     item("whatsapp", "contact", "WhatsApp number", false, filled(p.whatsapp)),
     item("visitingHours", "contact", "Site visiting hours", false, filled(p.visitingHours)),
   ];

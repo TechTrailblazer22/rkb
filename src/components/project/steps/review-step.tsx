@@ -87,7 +87,8 @@ export function ReviewStep({ ctx }: { ctx: ProjectContext }) {
         <section className="rounded-2xl border border-slate-200 bg-white p-6">
           <h3 className="text-lg font-bold">Before you submit</h3>
           <p className="mt-1 text-sm text-slate-600">
-            {checklist.percent}% complete. The items marked required must be done to submit.
+            {checklist.percent}% complete. Nothing here is mandatory: you can submit at any time,
+            and our team will review what you have filled in. A fuller listing gets more enquiries.
           </p>
 
           {checklist.problems.length > 0 && (
@@ -109,42 +110,50 @@ export function ReviewStep({ ctx }: { ctx: ProjectContext }) {
             </ul>
           )}
 
-          <h4 className="mt-5 text-sm font-bold">Required</h4>
-          <ul className="mt-2 space-y-2" data-testid="required-items">
-            {required.map((item) => (
-              <li
-                key={item.key}
-                className="flex items-start gap-2 text-sm"
-                data-item={item.key}
-                data-done={item.done}
-              >
-                {item.done ? (
-                  <CheckCircle2
-                    className="mt-0.5 size-5 shrink-0 text-teal-500"
-                    aria-label="Done"
-                  />
-                ) : (
-                  <XCircle className="mt-0.5 size-5 shrink-0 text-red-500" aria-label="Missing" />
-                )}
-                <span>
-                  {item.done ? (
-                    item.label
-                  ) : (
-                    <Link
-                      href={`/portal/projects/${id}/${item.step}`}
-                      className="font-semibold text-teal-700 underline"
-                    >
-                      {item.label}
-                    </Link>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {required.length > 0 && (
+            <>
+              <h4 className="mt-5 text-sm font-bold">Required</h4>
+              <ul className="mt-2 space-y-2" data-testid="required-items">
+                {required.map((item) => (
+                  <li
+                    key={item.key}
+                    className="flex items-start gap-2 text-sm"
+                    data-item={item.key}
+                    data-done={item.done}
+                  >
+                    {item.done ? (
+                      <CheckCircle2
+                        className="mt-0.5 size-5 shrink-0 text-teal-500"
+                        aria-label="Done"
+                      />
+                    ) : (
+                      <XCircle
+                        className="mt-0.5 size-5 shrink-0 text-red-500"
+                        aria-label="Missing"
+                      />
+                    )}
+                    <span>
+                      {item.done ? (
+                        item.label
+                      ) : (
+                        <Link
+                          href={`/portal/projects/${id}/${item.step}`}
+                          className="font-semibold text-teal-700 underline"
+                        >
+                          {item.label}
+                        </Link>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
 
-          <details className="mt-5">
+          <details className="mt-5" open={required.length === 0} data-testid="optional-items">
             <summary className="cursor-pointer text-sm font-bold">
-              Recommended ({recommended.filter((i) => i.done).length} of {recommended.length} done)
+              {required.length > 0 ? "Recommended" : "Details"} (
+              {recommended.filter((i) => i.done).length} of {recommended.length} filled in)
             </summary>
             <ul className="mt-2 space-y-2">
               {recommended.map((item) => (

@@ -682,8 +682,9 @@ check(
 
 await o1.page.goto(baseUrl + `${base}/review`);
 check(
-  "review: every required item is done",
-  (await o1.page.locator('[data-testid="required-items"] [data-done="false"]').count()) === 0,
+  "review: nothing is mandatory, so there is no Required list",
+  (await o1.page.locator('[data-testid="required-items"]').count()) === 0 &&
+    (await text(o1.page)).includes("Nothing here is mandatory"),
 );
 check(
   "review: submit stays disabled until the company is verified",
@@ -764,8 +765,8 @@ check(
     (await text(adm.page)).includes("B-5"),
 );
 check(
-  "admin: Approve is disabled until an approval is verified",
-  await adm.page.getByRole("button", { name: "Approve and publish" }).isDisabled(),
+  "admin: Approve is available even though no approval is verified yet",
+  await adm.page.getByRole("button", { name: "Approve and publish" }).isEnabled(),
 );
 
 const certHref = await adm.page
@@ -1168,6 +1169,79 @@ const overflow = await phone.page.evaluate(
   () => document.documentElement.scrollWidth > window.innerWidth + 2,
 );
 check("phone: the plots step does not scroll sideways as a page", !overflow);
+
+// =====================================================================
+section("15. A barely filled-in project can be submitted, approved and shown to buyers");
+await sql(
+  `update "Builder" set status = 'VERIFIED', "verifiedAt" = now(), "companyName" = 'Second Builders'
+   where id = (select bm."builderId" from "BuilderMember" bm join "User" u on u.id = bm."userId" where u.email = 'owner2@test.example')`,
+);
+await own2.page.goto(baseUrl + "/portal/projects");
+await own2.page.locator("#name").fill("Bare Minimum Layout");
+await own2.page.getByRole("button", { name: "Create" }).click();
+await own2.page.waitForURL(/\/portal\/projects\/[^/]+\/basics$/);
+const bareId = here(own2.page).split("/")[3];
+await own2.page.goto(baseUrl + `/portal/projects/${bareId}/basics`);
+check(
+  "wizard: no field except the name is marked as required",
+  (await own2.page.locator("label span[aria-hidden='true']", { hasText: "*" }).count()) === 1,
+);
+await own2.page.goto(baseUrl + `/portal/projects/${bareId}/review`);
+check(
+  "review: a nearly empty project can be submitted",
+  await own2.page.getByRole("button", { name: "Submit for review" }).isEnabled(),
+);
+check(
+  "review: it is explained as optional",
+  (await text(own2.page)).includes("Nothing here is mandatory"),
+);
+await own2.page.getByRole("button", { name: "Submit for review" }).click();
+await own2.page.waitForURL(/saved=submitted/);
+check("submit: it goes to review", (await text(own2.page)).includes("Under review"));
+
+await adm.page.goto(baseUrl + "/admin/projects");
+await adm.page.getByRole("link", { name: "Bare Minimum Layout" }).click();
+await adm.page.waitForURL(/\/admin\/projects\/.+/);
+check(
+  "admin: sees that nothing has been added, without an error",
+  (await text(adm.page)).includes("has not added any approvals"),
+);
+check(
+  "admin: can approve it although it is far from complete",
+  await adm.page.getByRole("button", { name: "Approve and publish" }).isEnabled(),
+);
+await adm.page.getByRole("button", { name: "Approve and publish" }).click();
+await adm.page.waitForURL(/saved=Decision/);
+const bare = (await sql(`select status, slug from "Project" where id = $1`, [bareId]))[0];
+check(
+  "admin: the bare project is live with an address",
+  bare.status === "LIVE" && !!bare.slug,
+  JSON.stringify(bare),
+);
+
+const barePage = await fetch(baseUrl + `/project/${bare.slug}`);
+const bareHtml = await barePage.text();
+check("public: its page loads", barePage.status === 200, String(barePage.status));
+check(
+  "public: the page shows the name and says plainly what is not listed",
+  bareHtml.includes("Bare Minimum Layout") &&
+    bareHtml.includes("has not listed any approvals yet") &&
+    bareHtml.includes("takes enquiries through RKB"),
+);
+const listPage = await fetch(baseUrl + "/projects?q=Bare+Minimum");
+const listHtml = await listPage.text();
+check(
+  "public: it appears in search with 'Price on request' and no empty-looking gaps",
+  listHtml.includes("Bare Minimum Layout") && listHtml.includes("Price on request"),
+);
+const phoneView = await open(null, { width: 390, height: 844 });
+await phoneView.page.goto(baseUrl + `/project/${bare.slug}`);
+check(
+  "public: the bare page fits a phone screen",
+  !(await phoneView.page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth + 2,
+  )),
+);
 
 await db.end();
 await browser.close();

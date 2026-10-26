@@ -65,15 +65,16 @@ function input(
 }
 
 describe("buildProjectChecklist", () => {
-  it("is submittable when every required item is done", () => {
+  it("makes nothing mandatory", () => {
     const list = buildProjectChecklist(input());
+    expect(list.items.some((i) => i.required)).toBe(false);
     expect(list.missingRequired).toEqual([]);
     expect(list.canSubmit).toBe(true);
   });
 
-  it("scores required items higher than recommended ones, and 100 only when all are done", () => {
+  it("scores how much is filled in, and reaches 100 only when everything is", () => {
     const base = buildProjectChecklist(input());
-    expect(base.percent).toBeGreaterThan(60);
+    expect(base.percent).toBeGreaterThan(40);
     expect(base.percent).toBeLessThan(100);
 
     const full = buildProjectChecklist(
@@ -96,7 +97,7 @@ describe("buildProjectChecklist", () => {
     expect(full.percent).toBe(100);
   });
 
-  it("a brand new empty project is far from done", () => {
+  it("a brand new empty project is far from done, yet can still be submitted", () => {
     const list = buildProjectChecklist({
       project: completeProject({
         city: null,
@@ -120,9 +121,11 @@ describe("buildProjectChecklist", () => {
       hasBrochure: false,
       now: NOW,
     });
-    expect(list.canSubmit).toBe(false);
+    expect(list.canSubmit).toBe(true);
+    expect(list.missingRequired).toEqual([]);
     expect(list.percent).toBeLessThan(15);
-    expect(list.missingRequired.map((i) => i.key)).toEqual(
+    const notDone = list.items.filter((i) => !i.done).map((i) => i.key);
+    expect(notDone).toEqual(
       expect.arrayContaining([
         "city",
         "locality",
@@ -138,24 +141,27 @@ describe("buildProjectChecklist", () => {
     );
   });
 
-  it("a short description does not count", () => {
-    expect(buildProjectChecklist(input({}, { description: "Nice plots." })).canSubmit).toBe(false);
+  it("a short description does not count as done, but does not block either", () => {
+    const list = buildProjectChecklist(input({}, { description: "Nice plots." }));
+    expect(list.items.find((i) => i.key === "description")?.done).toBe(false);
+    expect(list.canSubmit).toBe(true);
   });
 
   it("accepts prices on the plots instead of a price per sq ft", () => {
-    expect(
-      buildProjectChecklist(input({ pricedPlotCount: 10 }, { pricePerSqft: null })).canSubmit,
-    ).toBe(true);
-    expect(
-      buildProjectChecklist(input({ pricedPlotCount: 0 }, { pricePerSqft: null })).canSubmit,
-    ).toBe(false);
+    const priceDone = (priced: number) =>
+      buildProjectChecklist(input({ pricedPlotCount: priced }, { pricePerSqft: null })).items.find(
+        (i) => i.key === "price",
+      )?.done;
+    expect(priceDone(10)).toBe(true);
+    expect(priceDone(0)).toBe(false);
   });
 
-  it("needs an approval with a number, and ignores one that has expired", () => {
-    expect(
-      buildProjectChecklist(input({ approvals: [{ kind: "RERA", number: " ", validTill: null }] }))
-        .canSubmit,
-    ).toBe(false);
+  it("counts an approval only with a number, and blocks on one that has expired", () => {
+    const blank = buildProjectChecklist(
+      input({ approvals: [{ kind: "RERA", number: " ", validTill: null }] }),
+    );
+    expect(blank.items.find((i) => i.key === "approval")?.done).toBe(false);
+    expect(blank.canSubmit).toBe(true);
     const expired = buildProjectChecklist(
       input({ approvals: [{ kind: "TNCP", number: "TNCP/1", validTill: new Date("2025-12-31") }] }),
     );
@@ -170,9 +176,11 @@ describe("buildProjectChecklist", () => {
     expect(list.canSubmit).toBe(true);
   });
 
-  it("needs at least three photos", () => {
-    expect(buildProjectChecklist(input({ photoCount: 2 })).canSubmit).toBe(false);
-    expect(buildProjectChecklist(input({ photoCount: 3 })).canSubmit).toBe(true);
+  it("counts photos as done from three, and never blocks on them", () => {
+    const photos = (n: number) => buildProjectChecklist(input({ photoCount: n }));
+    expect(photos(2).items.find((i) => i.key === "photos")?.done).toBe(false);
+    expect(photos(3).items.find((i) => i.key === "photos")?.done).toBe(true);
+    expect(photos(0).canSubmit).toBe(true);
   });
 
   it.each([
@@ -194,7 +202,7 @@ describe("buildProjectChecklist", () => {
     const list = buildProjectChecklist(input({ photoCount: 1 }));
     expect(list.stepDone.basics).toBe(true);
     expect(list.stepDone.media).toBe(false);
-    expect(list.stepDone.review).toBe(false);
+    expect(list.stepDone.review).toBe(true); // nothing contradicts anything, so it may be submitted
   });
 });
 

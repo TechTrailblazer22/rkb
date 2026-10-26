@@ -362,6 +362,13 @@ Differences from the original plan:
 - **Template is CSV**, which opens in Excel. Uploads accept `.xlsx` and `.csv`.
 - **Plan limits** (projects, photos, video) are read from one place (`src/lib/entitlements.ts`) and use the Growth limits for everyone until billing exists (Phase 7).
 
+**Changed after Phase 5: nothing in a project is mandatory.** A project can be submitted, and approved, at any level of completeness. The `required` flag on each checklist item (`src/lib/projects/checklist.ts`) is kept and is `false` everywhere, so an item can be made mandatory again with a one-word change. The wizard shows no stars (the project name is the exception, because a project cannot exist without one), and the review page says "Nothing here is mandatory" and lists everything as details to fill in. What stayed the same:
+- **Contradictions still block submitting and approving**: a starting price above the highest price, a completion date before the start date, more plots than the stated total, and an expired approval. They are mistakes rather than missing information.
+- **The company must still be verified** before any project can be submitted or approved.
+- **Approvals no longer have to be verified** for the admin to approve. The old rule (at least one verified RERA, TNCP or municipal approval) is gone, because a project with no approvals could otherwise never go live. The public page labels each approval "Verified on {date}" or "Not yet verified by RKB", and the "Approvals verified" badge only appears when the admin has verified one.
+- The percentage is now a plain share of items filled in, since no item counts extra.
+- Public pages cope with a nearly empty project: no price shows "Price on request", no plots hides the plot table, no approvals says none are listed, no contact number shows the "enquiries go through RKB" card.
+
 Deferred, on purpose:
 - **Map pin picker and locality autocomplete.** The wizard has a map-link field, and city and locality are free text. A real picker needs map tiles and a locality list; revisit in Phase 5, where search needs consistent localities.
 - **Drag-to-reorder photos.** Photos can be given a cover and removed.

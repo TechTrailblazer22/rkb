@@ -72,13 +72,10 @@ export default async function AdminProjectPage({
   });
   const actorEmail = new Map(actors.map((a) => [a.id, a.email]));
 
-  const usable = project.approvals.some(
-    (a) =>
-      a.verified && a.number && (a.kind === "RERA" || a.kind === "TNCP" || a.kind === "MUNICIPAL"),
-  );
   const builderVerified = project.builder.status === "VERIFIED";
   const stepLabel = (slug: string) => STEPS.find((s) => s.slug === slug)?.label ?? slug;
-  const ready = Boolean(checklist?.canSubmit) && usable && builderVerified;
+  const ready = Boolean(checklist?.canSubmit) && builderVerified;
+  const completeness = checklist?.percent ?? 0;
 
   return (
     <div className="space-y-6">
@@ -154,9 +151,12 @@ export default async function AdminProjectPage({
         </section>
       )}
 
-      {checklist && !checklist.canSubmit && (
-        <section className="rounded-xl border border-amber-500/50 bg-amber-50 p-4 text-sm text-amber-700">
-          <p className="font-semibold">The checklist is not complete ({checklist.percent}%):</p>
+      {checklist && (checklist.missingRequired.length > 0 || checklist.problems.length > 0) && (
+        <section
+          role="alert"
+          className="rounded-xl border border-amber-500/50 bg-amber-50 p-4 text-sm text-amber-700"
+        >
+          <p className="font-semibold">Check before approving ({completeness}% complete):</p>
           <ul className="mt-1 list-disc pl-5">
             {checklist.missingRequired.map((item) => (
               <li key={item.key}>
@@ -176,13 +176,14 @@ export default async function AdminProjectPage({
       >
         <h3 className="text-lg font-bold">Approvals</h3>
         <p className="mt-1 text-sm text-slate-600">
-          Open each certificate, compare it with the number the builder entered, then verify it. At
-          least one RERA, TNCP or municipal approval must be verified before the project can be
-          approved.
+          Open each certificate, compare it with the number the builder entered, then verify it.
+          Verifying is not required to approve the project: buyers see a &ldquo;Verified&rdquo;
+          label only on approvals you have verified, and &ldquo;Not yet verified by RKB&rdquo; on
+          the rest.
         </p>
         {project.approvals.length === 0 ? (
-          <p className="mt-4 text-sm font-medium text-red-600">
-            The builder has not added any approvals.
+          <p className="mt-4 text-sm font-medium text-amber-700">
+            The builder has not added any approvals. Buyers will see that none are listed.
           </p>
         ) : (
           <ul className="mt-4 space-y-4">
@@ -288,8 +289,8 @@ export default async function AdminProjectPage({
             </div>
             {!ready && (
               <p className="text-sm text-amber-700">
-                Approve is available once the builder is verified, the checklist is complete, and an
-                approval is verified.
+                Approve is available once the builder is verified and the project has no conflicting
+                details.
               </p>
             )}
             <div className="flex flex-wrap gap-3">

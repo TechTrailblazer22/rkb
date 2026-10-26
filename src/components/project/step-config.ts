@@ -21,7 +21,7 @@ export type FieldUi = {
   control: Control;
   hint?: string;
   wide?: boolean;
-  /** Shown with a red star. Mirrors the checklist's required items. */
+  /** Shown with a red star. Mirrors the checklist's required items (currently only the name, which a project cannot exist without). */
   required?: boolean;
 };
 
@@ -37,9 +37,14 @@ export const STEP_UI: Record<FormStep, StepUi> = {
       { key: "name", control: { kind: "text", maxLength: 100 }, required: true, wide: true },
       { key: "type", control: { kind: "select", options: PROJECT_TYPES } },
       { key: "stage", control: { kind: "select", options: PROJECT_STAGES } },
-      { key: "city", control: { kind: "text", maxLength: 60 }, required: true },
-      { key: "locality", control: { kind: "text", maxLength: 80 }, required: true },
-      { key: "addressLine", control: { kind: "text", maxLength: 200 }, required: true, wide: true },
+      { key: "city", control: { kind: "text", maxLength: 60 }, required: false },
+      { key: "locality", control: { kind: "text", maxLength: 80 }, required: false },
+      {
+        key: "addressLine",
+        control: { kind: "text", maxLength: 200 },
+        required: false,
+        wide: true,
+      },
       {
         key: "mapUrl",
         control: {
@@ -55,7 +60,7 @@ export const STEP_UI: Record<FormStep, StepUi> = {
         key: "description",
         control: { kind: "textarea", rows: 6, maxLength: 1500 },
         hint: "At least 50 characters. What makes this project worth a visit? Approvals, location, nearby facilities.",
-        required: true,
+        required: false,
         wide: true,
       },
     ],
@@ -72,7 +77,7 @@ export const STEP_UI: Record<FormStep, StepUi> = {
         key: "totalPlots",
         control: { kind: "text", inputMode: "numeric", maxLength: 4 },
         hint: "The planned total, even if you have not added every plot yet.",
-        required: true,
+        required: false,
       },
       { key: "openAreaPercent", control: { kind: "text", inputMode: "numeric", maxLength: 3 } },
       { key: "phasesCount", control: { kind: "text", inputMode: "numeric", maxLength: 2 } },
@@ -83,11 +88,11 @@ export const STEP_UI: Record<FormStep, StepUi> = {
     description:
       "Approvals and land details buyers and banks look for. Add the approval certificates below.",
     fields: [
-      { key: "landUse", control: { kind: "select", options: strings(LAND_USES) }, required: true },
+      { key: "landUse", control: { kind: "select", options: strings(LAND_USES) }, required: false },
       {
         key: "titleStatus",
         control: { kind: "select", options: strings(TITLE_STATUSES) },
-        required: true,
+        required: false,
       },
       {
         key: "bankLoans",
@@ -113,7 +118,7 @@ export const STEP_UI: Record<FormStep, StepUi> = {
       {
         key: "pricePerSqft",
         control: { kind: "text", inputMode: "numeric", placeholder: "For example 1850" },
-        hint: "Required unless every plot has its own price.",
+        hint: "Leave empty if every plot has its own price.",
       },
       { key: "tokenAmount", control: { kind: "text", inputMode: "numeric" } },
       {
@@ -157,11 +162,11 @@ export const STEP_UI: Record<FormStep, StepUi> = {
     title: "Contact",
     description: "Who buyers reach when they enquire about this project.",
     fields: [
-      { key: "contactName", control: { kind: "text", maxLength: 80 }, required: true },
+      { key: "contactName", control: { kind: "text", maxLength: 80 }, required: false },
       {
         key: "contactMobile",
         control: { kind: "text", inputMode: "tel", maxLength: 16 },
-        required: true,
+        required: false,
       },
       { key: "whatsapp", control: { kind: "text", inputMode: "tel", maxLength: 16 } },
       {

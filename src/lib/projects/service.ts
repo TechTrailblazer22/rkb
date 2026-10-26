@@ -151,25 +151,12 @@ export async function transitionProject(
     if (!checklist?.canSubmit) {
       return fail(
         "incomplete",
-        "The project is not complete yet. Fill in the required items first.",
+        "Some details in the project contradict each other. Fix the items listed first.",
       );
     }
   }
-  if (action === "APPROVE") {
-    const verified = project.approvals.some(
-      (a) =>
-        a.verified &&
-        (a.number ?? "").trim() !== "" &&
-        a.kind !== "BANK_LOAN" &&
-        a.kind !== "OTHER",
-    );
-    if (!verified) {
-      return fail(
-        "approval_unverified",
-        "Verify at least one RERA, TNCP or municipal approval before approving.",
-      );
-    }
-  }
+  // No approval has to be verified for a project to go live. The public page labels each
+  // approval as verified or not, so buyers always see which ones RKB has checked.
 
   const now = new Date();
   const slug =

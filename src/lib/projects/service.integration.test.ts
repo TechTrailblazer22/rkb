@@ -161,11 +161,16 @@ describe.skipIf(!url)("projects and plots (real Postgres)", () => {
   describe("loadChecklist", () => {
     it("counts plots, approvals and photos from the database", async () => {
       const project = await newProject();
-      expect((await loadChecklist(db, project.id))?.canSubmit).toBe(false);
+      const before = await loadChecklist(db, project.id);
+      expect(before?.canSubmit).toBe(true); // nothing is mandatory
+      expect(before?.items.find((i) => i.key === "plots")?.done).toBe(false);
       await complete(project.id);
       const list = await loadChecklist(db, project.id);
       expect(list?.missingRequired).toEqual([]);
       expect(list?.canSubmit).toBe(true);
+      for (const key of ["plots", "approval", "photos", "price"])
+        expect(list?.items.find((i) => i.key === key)?.done).toBe(true);
+      expect(list!.percent).toBeGreaterThan(before!.percent);
     });
 
     it("returns null for a project that does not exist", async () => {
@@ -177,8 +182,31 @@ describe.skipIf(!url)("projects and plots (real Postgres)", () => {
     const builderActor = () => ({ id: userId, kind: "builder" as const });
     const admin = { id: "admin-1", kind: "admin" as const };
 
-    it("will not submit an unfinished project", async () => {
+    it("submits and approves a project that is far from complete", async () => {
       const project = await newProject();
+      const submitted = await transitionProject(db, {
+        projectId: project.id,
+        action: "SUBMIT",
+        actor: builderActor(),
+        builderId,
+      });
+      expect(submitted).toMatchObject({ ok: true, to: "SUBMITTED" });
+      // No plots, no photos, no verified approval: the admin may still approve it.
+      const live = await transitionProject(db, {
+        projectId: project.id,
+        action: "APPROVE",
+        actor: admin,
+      });
+      expect(live).toMatchObject({ ok: true, to: "LIVE" });
+      if (live.ok) expect(live.project.slug).toBeTruthy();
+    });
+
+    it("will not submit a project whose details contradict each other", async () => {
+      const project = await newProject();
+      await db.project.update({
+        where: { id: project.id },
+        data: { budgetFrom: 9_000_000, budgetTo: 1_000_000 },
+      });
       expect(
         await transitionProject(db, {
           projectId: project.id,
@@ -186,10 +214,7 @@ describe.skipIf(!url)("projects and plots (real Postgres)", () => {
           actor: builderActor(),
           builderId,
         }),
-      ).toMatchObject({
-        ok: false,
-        code: "incomplete",
-      });
+      ).toMatchObject({ ok: false, code: "incomplete" });
     });
 
     it("will not submit for a builder who is not verified yet", async () => {
@@ -268,18 +293,6 @@ describe.skipIf(!url)("projects and plots (real Postgres)", () => {
         reviewNote: "Please add the layout plan.",
       });
       expect((await run("SUBMIT", builderActor())).reviewNote).toBeNull();
-
-      // Cannot approve until an approval has been verified by an admin.
-      expect(
-        await transitionProject(db, { projectId: project.id, action: "APPROVE", actor: admin }),
-      ).toMatchObject({
-        ok: false,
-        code: "approval_unverified",
-      });
-      await db.projectApproval.updateMany({
-        where: { projectId: project.id },
-        data: { verified: true },
-      });
 
       const live = await run("APPROVE", admin);
       expect(live.status).toBe("LIVE");

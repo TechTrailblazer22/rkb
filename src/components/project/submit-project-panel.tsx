@@ -31,7 +31,7 @@ export function SubmitProjectPanel({
       {blockedReason && <p className="text-sm text-amber-700">{blockedReason}</p>}
       {!blockedReason && !canSubmit && (
         <p className="text-sm text-slate-600">
-          Complete the required items above to enable submitting.
+          Fix the conflicts listed above to enable submitting.
         </p>
       )}
       {result && !result.ok && (
