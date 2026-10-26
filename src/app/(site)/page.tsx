@@ -124,7 +124,7 @@ export default async function HomePage() {
 
           <div className="hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm lg:block">
             <p className="text-xs font-bold tracking-wider text-white/70 uppercase">
-              Live plot availability
+              Example layout
             </p>
             <PlotGridArt live className="mt-4" />
             <div className="mt-4">
@@ -163,7 +163,7 @@ export default async function HomePage() {
 
           <ShortlistProvider>
             <ul className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {cards.map((card, index) => (
+              {cards.slice(0, cards.length >= 6 ? 6 : 3).map((card, index) => (
                 <li key={card.id}>
                   <ListingCard card={card} priority={index < 3} />
                 </li>
@@ -197,32 +197,26 @@ export default async function HomePage() {
               </Link>
             ))}
           </div>
-        </Container>
-      </section>
 
-      {cities.length > 0 && (
-        <section className="bg-surface pb-4" aria-label="Browse by city">
-          <Container>
-            <h2 className="text-xl font-bold">Browse by city</h2>
-            <ul className="mt-4 flex flex-wrap gap-2">
-              {cities.map((city) => (
-                <li key={city.slug}>
-                  <Link
-                    href={`/projects/${city.slug}`}
-                    className="inline-block rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold hover:border-teal-500"
-                  >
-                    {city.name} <span className="text-slate-500">({city.count})</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Container>
-        </section>
-      )}
+          {cities.length > 0 && (
+            <div className="mt-12">
+              <h3 className="text-lg font-bold">Browse by city</h3>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {cities.map((city) => (
+                  <li key={city.slug}>
+                    <Link
+                      href={`/projects/${city.slug}`}
+                      className="inline-block rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold hover:border-teal-500"
+                    >
+                      {city.name} <span className="text-slate-600">({city.count})</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-      <section className="py-4">
-        <Container>
-          <RecentlyViewed />
+          <RecentlyViewed className="mt-12" />
         </Container>
       </section>
 

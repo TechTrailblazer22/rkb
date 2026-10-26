@@ -404,3 +404,43 @@ Deferred, on purpose:
 - Enquiry form, alerts for saved searches, price-drop notifications (Phase 6).
 - Reviews and ratings (Phase 9).
 - Locality autocomplete and a map of results.
+
+## Design pass (after Phase 5)
+
+A review of the live site at desktop, tablet and phone widths, then a set of changes to make it read
+as a property marketplace people can trust. The system itself is written down in
+`docs/DESIGN-SYSTEM.md`.
+
+What was wrong, and what changed:
+- **Availability was hidden.** A single green bar hid the difference between booked and sold plots,
+  which is the platform's main promise. Cards and the project page now show available, booked and
+  sold as one bar with counts (`AvailabilityBar`), taken from the real plots. The builder's
+  overview uses the same bar.
+- **Invented visuals.** A project without photos drew a random plot map, and a project with no plots
+  showed a made-up "60% available". Both are gone: a calm "Photos coming soon" panel
+  (`MediaPlaceholder`) is used instead, and the home page's decorative plot grid is labelled
+  "Example layout".
+- **Cards.** Stage and type names wrapped out of their pills ("Under construction / development") and
+  card heights differed. Labels are short, names clamp to two lines, the structure is fixed.
+- **Search.** The filter sidebar was one very long list and the dropdowns cut their text. Groups now
+  fold away (Type and Budget open, the rest folded, any group with a choice opens itself and shows a
+  count), the sidebar stays in view on desktop, the sort links scroll along one line on a phone.
+- **Project page.** The huge empty hero is now a compact placeholder, and an availability summary sits
+  above the long plot table. "Available now" was removed from the fact tiles because it repeated it.
+- **Home page.** A lone fourth card on a three-column grid, and a grey strip for "Browse by city",
+  are gone: the page shows a full row of cards and keeps cities and recently viewed under the
+  property types.
+- **Builder overview.** It said listing projects "arrives in the next release", which was out of
+  date. It is now a dashboard: live, in-review and draft projects, plots available, availability
+  across live projects, and what needs the builder's attention (with the reviewer's note).
+- **Contrast and headings** on `/for-builders` and `/pricing`.
+- Demo projects in the seed script no longer carry a "Seed" prefix.
+
+Checked: Lighthouse accessibility is 100 on the home, search, project, login, for-builders and
+pricing pages; SEO 100 on all but the login page, which is `noindex` on purpose. The keyboard
+(Tab, Enter, Space, visible focus ring) was tested on the collapsible filters. Performance scores
+varied between 73 and 94 from run to run on this machine and were not improved or worsened in any
+way I could attribute to a change; measure them again on the Render URL with real photos.
+
+Not done: photo upload and ordering, a map of results, a charts/analytics page for builders (needs
+the enquiry data from Phase 6), and a visual review of the admin console, which was not redesigned.

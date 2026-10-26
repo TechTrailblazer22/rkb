@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { AlertTriangle, BadgeCheck, CheckCircle2, Circle, Clock } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, Clock } from "lucide-react";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { buttonClass } from "@/components/ui/button";
 import { requireBuilderContext } from "@/lib/builders/context";
+import { BuilderDashboardView } from "@/components/portal/dashboard";
+import { loadBuilderDashboard } from "@/lib/builders/dashboard";
 import { documentLabel } from "@/lib/builders/documents";
+import { getDb } from "@/lib/db";
 
 export const metadata = { title: "Builder portal" };
 
@@ -42,22 +45,11 @@ export default async function PortalPage() {
   const { builder, documents, checklist } = await requireBuilderContext("/portal");
   const { status } = builder;
   const rejectedDocuments = documents.filter((d) => d.status === "REJECTED");
+  const dashboard = status === "VERIFIED" ? await loadBuilderDashboard(getDb(), builder.id) : null;
 
   return (
     <div className="space-y-6">
-      {status === "VERIFIED" && (
-        <section className="flex gap-4 rounded-2xl border border-teal-500/40 bg-teal-50 p-6">
-          <BadgeCheck className="size-8 shrink-0 text-teal-700" aria-hidden="true" />
-          <div>
-            <h2 className="text-lg font-bold">You are a Verified Builder</h2>
-            <p className="mt-1 text-sm text-slate-700">
-              Your verification is complete. Listing your projects, with plots, photos and
-              approvals, is the next step and arrives in the next release. You can still update how
-              your company is presented from the Company profile tab.
-            </p>
-          </div>
-        </section>
-      )}
+      {dashboard && <BuilderDashboardView data={dashboard} />}
 
       {status === "SUBMITTED" && (
         <section className="flex gap-4 rounded-2xl border border-amber-500/40 bg-amber-50 p-6">

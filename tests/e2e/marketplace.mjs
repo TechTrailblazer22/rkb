@@ -336,6 +336,35 @@ const all = new Set();
 let total = await anon.page.getByTestId("result-count").innerText();
 check("the marketplace counts 19 public projects", total.startsWith("19 projects"), total);
 check("12 cards on the first page", (await cards(anon.page).count()) === 12);
+await anon.page.goto(baseUrl + "/projects?q=green+valley");
+await settle(anon.page);
+check(
+  "each card shows availability as a bar with booked and sold counts",
+  (await anon.page
+    .locator('[data-slug="green-valley-enclave"] [role="img"][aria-label^="12 available"]')
+    .count()) === 1 &&
+    (await anon.page.locator('[data-slug="green-valley-enclave"]').innerText()).includes(
+      "4 booked · 4 sold",
+    ),
+);
+check(
+  "card labels stay on one line (short stage and type names)",
+  !(await text(anon.page)).includes("Under construction / development"),
+);
+{
+  const open = (name) =>
+    anon.page
+      .locator("details", { has: anon.page.locator("summary", { hasText: name }) })
+      .first()
+      .evaluate((el) => el.open);
+  check("filters: Type and Budget start open", (await open("Type")) && (await open("Budget")));
+  check(
+    "filters: the rest start folded away",
+    !(await open("Stage")) && !(await open("Amenities")) && !(await open("Approvals")),
+  );
+}
+await anon.page.goto(baseUrl + "/projects");
+await settle(anon.page);
 {
   const raw = await html("/projects");
   check(
@@ -469,6 +498,18 @@ check(
   (await anon.page.evaluate(() => window.__pwn2)) === undefined,
 );
 
+await anon.page.goto(baseUrl + "/projects?amenity=park");
+await settle(anon.page);
+check(
+  "filters: a group that holds a choice is open, with its count",
+  (await anon.page
+    .locator("details", { has: anon.page.locator("summary", { hasText: "Amenities" }) })
+    .first()
+    .evaluate((el) => el.open)) &&
+    (await anon.page.locator("summary", { hasText: "Amenities" }).first().innerText()).includes(
+      "1",
+    ),
+);
 section("city pages");
 await anon.page.goto(baseUrl + "/projects/hosur");
 await settle(anon.page);
@@ -518,6 +559,19 @@ section("the project page");
 
 const res = await html("/project/green-valley-enclave");
 check("the project page loads", res.status === 200, String(res.status));
+{
+  // The availability summary and bar come from the real plot counts (12 available, 4 booked, 4 sold).
+  const raw = res.body;
+  check(
+    "the project page summarises availability from the real counts",
+    raw.includes("12 of 20 plots available") &&
+      raw.includes("12 available, 4 booked and 4 sold, out of 20 plots"),
+  );
+  check(
+    "and a project without photos says so instead of drawing a fake plot map",
+    raw.includes("Photos coming soon") && !raw.includes("plot-cell-live"),
+  );
+}
 {
   // What search engines and link previews read: the server's HTML, before any script runs.
   const visibleText = res.body

@@ -146,7 +146,7 @@ export default function PricingPage() {
               </tbody>
             </table>
           </div>
-          <p className="mt-4 text-xs text-slate-500">
+          <p className="mt-4 text-xs text-slate-600">
             Plans, prices and features are indicative and open for discussion.
           </p>
         </Container>
@@ -166,7 +166,7 @@ export default function PricingPage() {
           <h2 className="text-3xl font-extrabold tracking-tight">
             Ready to list your first project?
           </h2>
-          <p className="mx-auto mt-3 max-w-lg text-white/80">
+          <p className="mx-auto mt-3 max-w-lg text-white">
             Create your builder account and fill in your details at your own pace. Our team helps
             you set up your first project at no extra cost.
           </p>

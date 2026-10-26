@@ -1,5 +1,4 @@
 import type { PrismaClient } from "@/generated/prisma/client";
-import { PROJECT_STAGES, PROJECT_TYPES } from "@/lib/projects/fields";
 import { EMPTY_FILTERS, type SearchFilters } from "@/lib/search/params";
 import { searchRows, type SearchRow } from "@/lib/search/query";
 import { safePublicUrl } from "@/lib/storage/url";
@@ -9,6 +8,7 @@ export type ListingCardData = {
   id: string;
   slug: string | null;
   name: string;
+  /** Short enough to sit on one line of a card. */
   typeLabel: string;
   typeKey: string;
   stageLabel: string;
@@ -20,29 +20,35 @@ export type ListingCardData = {
   sizeFrom: number | null;
   sizeTo: number | null;
   availablePlots: number;
+  bookedPlots: number;
+  soldPlots: number;
   totalPlots: number;
   approvals: { label: string; verified: boolean }[];
   builder: { name: string | null; slug: string | null; logoUrl: string | null };
   coverUrl: string | null;
-  /** Drives the generated artwork when there is no photo. */
-  artSeed: number;
   sample?: boolean;
 };
 
-const label = (list: { value: string; label: string }[], value: string) =>
-  list.find((item) => item.value === value)?.label ?? value;
+// Card labels: the full names ("Under construction / development") do not fit on one line.
+const TYPE_SHORT: Record<string, string> = {
+  PLOTTED: "Plotted layout",
+  FARM_HOUSE: "Farm house",
+  RESIDENTIAL: "Residential",
+  COMMERCIAL: "Commercial",
+  MIXED_USE: "Mixed use",
+};
+const STAGE_SHORT: Record<string, string> = {
+  PRE_LAUNCH: "Pre-launch",
+  UNDER_CONSTRUCTION: "Under construction",
+  READY_TO_MOVE: "Ready to move",
+};
+const short = (labels: Record<string, string>, value: string) => labels[value] ?? value;
 
 const APPROVAL_LABEL: Record<string, string> = {
   RERA: "RERA",
   TNCP: "TNCP",
   MUNICIPAL: "Municipal",
 };
-
-export function artSeedFor(id: string): number {
-  let hash = 0;
-  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) % 997;
-  return hash % 50;
-}
 
 /** Search rows plus what is not in the search query: the cover photo and the approvals. */
 export async function toCards(db: PrismaClient, rows: SearchRow[]): Promise<ListingCardData[]> {
@@ -69,8 +75,8 @@ export async function toCards(db: PrismaClient, rows: SearchRow[]): Promise<List
       slug: row.slug,
       name: row.name,
       typeKey: row.type,
-      typeLabel: label(PROJECT_TYPES, row.type),
-      stageLabel: label(PROJECT_STAGES, row.stage),
+      typeLabel: short(TYPE_SHORT, row.type),
+      stageLabel: short(STAGE_SHORT, row.stage),
       city: row.city,
       locality: row.locality,
       priceFrom: row.priceFrom,
@@ -79,6 +85,8 @@ export async function toCards(db: PrismaClient, rows: SearchRow[]): Promise<List
       sizeFrom: row.sizeFrom,
       sizeTo: row.sizeTo,
       availablePlots: row.available,
+      bookedPlots: row.booked,
+      soldPlots: row.sold,
       totalPlots: row.total,
       approvals: (extra?.approvals ?? [])
         .filter((a) => a.kind in APPROVAL_LABEL)
@@ -90,7 +98,6 @@ export async function toCards(db: PrismaClient, rows: SearchRow[]): Promise<List
         logoUrl: safePublicUrl(row.logoKey, 96),
       },
       coverUrl: safePublicUrl(extra?.media[0]?.storageKey, 640),
-      artSeed: artSeedFor(row.id),
     };
   });
 }

@@ -2,18 +2,11 @@ import Link from "next/link";
 import { BadgeCheck, MapPin } from "lucide-react";
 import { ShortlistHeart } from "@/components/public/shortlist";
 import { Badge } from "@/components/ui/badge";
-import { PlotGridArt } from "@/components/ui/plot-grid-art";
+import { AvailabilityBar } from "@/components/ui/availability-bar";
+import { MediaPlaceholder } from "@/components/ui/media-placeholder";
 import { formatRupees, formatRupeesCompact } from "@/lib/format";
 import type { ListingCardData } from "@/lib/search/cards";
 import type { SampleProject } from "@/lib/sample-projects";
-
-const tone: Record<string, string> = {
-  PLOTTED: "from-navy-900 to-navy-700",
-  FARM_HOUSE: "from-teal-700 to-navy-800",
-  RESIDENTIAL: "from-navy-800 to-slate-plot",
-  COMMERCIAL: "from-navy-900 to-slate-plot",
-  MIXED_USE: "from-navy-900 to-teal-700",
-};
 
 function initials(name: string | null): string {
   return (name ?? "?")
@@ -28,7 +21,7 @@ function initials(name: string | null): string {
 /** The invented examples shown before real projects exist. Always labelled as samples. */
 const SAMPLE_TYPES: Record<SampleProject["type"], { key: string; label: string }> = {
   Plotted: { key: "PLOTTED", label: "Plotted layout" },
-  "Farm house": { key: "FARM_HOUSE", label: "Farm house / farmland" },
+  "Farm house": { key: "FARM_HOUSE", label: "Farm house" },
   Residential: { key: "RESIDENTIAL", label: "Residential" },
   Commercial: { key: "COMMERCIAL", label: "Commercial" },
 };
@@ -49,11 +42,13 @@ export function sampleToCard(sample: SampleProject): ListingCardData {
     sizeFrom: null,
     sizeTo: null,
     availablePlots: sample.availablePlots,
+    // Samples do not say which of the rest are booked and which sold: split them evenly.
+    bookedPlots: Math.ceil((sample.totalPlots - sample.availablePlots) / 2),
+    soldPlots: Math.floor((sample.totalPlots - sample.availablePlots) / 2),
     totalPlots: sample.totalPlots,
     approvals: sample.approvals.slice(0, 3).map((label) => ({ label, verified: false })),
     builder: { name: sample.builder.name, slug: null, logoUrl: null },
     coverUrl: null,
-    artSeed: sample.artSeed,
     sample: true,
   };
 }
@@ -69,8 +64,6 @@ export function ListingCard({
   titleAs?: "h2" | "h3";
 }) {
   const href = card.slug ? `/project/${card.slug}` : "/projects";
-  const percent =
-    card.totalPlots > 0 ? Math.round((card.availablePlots / card.totalPlots) * 100) : 0;
   const place = [card.locality, card.city].filter(Boolean).join(", ");
   const price =
     card.priceFrom !== null
@@ -100,17 +93,7 @@ export function ListingCard({
             className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div
-            className={`flex size-full items-center bg-gradient-to-br p-5 ${tone[card.typeKey] ?? tone.PLOTTED}`}
-          >
-            <PlotGridArt
-              seed={card.artSeed}
-              cols={10}
-              rows={4}
-              availableRatio={card.totalPlots ? card.availablePlots / card.totalPlots : 0.6}
-              className="w-full gap-1 opacity-95"
-            />
-          </div>
+          <MediaPlaceholder type={card.typeKey} />
         )}
         <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
           <div className="flex flex-wrap gap-1.5">
@@ -125,7 +108,7 @@ export function ListingCard({
         <p className="text-xs font-semibold tracking-wide text-teal-700 uppercase">
           {card.typeLabel}
         </p>
-        <Title className="text-navy-900 mt-1 text-lg font-bold">
+        <Title className="text-navy-900 mt-1 line-clamp-2 text-lg leading-snug font-bold">
           {/* the whole card is clickable through this link */}
           <Link
             href={href}
@@ -150,26 +133,26 @@ export function ListingCard({
           </p>
         </div>
 
-        {card.totalPlots > 0 && (
-          <div className="mt-4">
-            <div className="flex items-baseline justify-between text-xs font-semibold">
-              <span>
-                {card.availablePlots} of {card.totalPlots} available
-              </span>
-              <span className="text-slate-500">{percent}%</span>
-            </div>
-            <div
-              className="bg-surface mt-1.5 h-2 overflow-hidden rounded-full"
-              role="progressbar"
-              aria-label="Share of plots still available"
-              aria-valuenow={percent}
-              aria-valuemin={0}
-              aria-valuemax={100}
-            >
-              <div className="h-full rounded-full bg-teal-500" style={{ width: `${percent}%` }} />
-            </div>
-          </div>
-        )}
+        <div className="mt-4">
+          {card.totalPlots > 0 ? (
+            <>
+              <p className="text-sm font-semibold">
+                {card.availablePlots} of {card.totalPlots} plots available
+              </p>
+              <AvailabilityBar
+                available={card.availablePlots}
+                booked={card.bookedPlots}
+                sold={card.soldPlots}
+                className="mt-1.5"
+              />
+              <p className="mt-1.5 text-xs text-slate-600">
+                {card.bookedPlots} booked · {card.soldPlots} sold
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-600">Plot availability not listed yet</p>
+          )}
+        </div>
 
         {card.approvals.length > 0 && (
           <ul className="mt-4 flex flex-wrap gap-1.5">

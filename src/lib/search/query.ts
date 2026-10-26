@@ -25,6 +25,9 @@ export type SearchRow = {
   sizeTo: number | null;
   total: number;
   available: number;
+  /** Booked, and held (which buyers see as booked). */
+  booked: number;
+  sold: number;
   companyName: string | null;
   builderSlug: string | null;
   logoKey: string | null;
@@ -44,7 +47,9 @@ const SOURCE = Prisma.sql`
     SELECT MIN(pl.price) AS pmin, MAX(pl.price) AS pmax,
            MIN(pl."sizeSqft") AS smin, MAX(pl."sizeSqft") AS smax,
            COUNT(*)::int AS total,
-           COUNT(*) FILTER (WHERE pl.status = 'AVAILABLE')::int AS available
+           COUNT(*) FILTER (WHERE pl.status = 'AVAILABLE')::int AS available,
+           COUNT(*) FILTER (WHERE pl.status IN ('BOOKED', 'HELD'))::int AS booked,
+           COUNT(*) FILTER (WHERE pl.status = 'SOLD')::int AS sold
     FROM "Plot" pl
     WHERE pl."projectId" = p.id
   ) s ON TRUE`;
@@ -121,6 +126,7 @@ export async function searchRows(
              p."publishedAt", ${BAND_FROM} AS "priceFrom", ${BAND_TO} AS "priceTo",
              p."pricePerSqft", s.smin AS "sizeFrom", s.smax AS "sizeTo",
              COALESCE(s.total, 0) AS total, COALESCE(s.available, 0) AS available,
+             COALESCE(s.booked, 0) AS booked, COALESCE(s.sold, 0) AS sold,
              b."companyName", b.slug AS "builderSlug", b."logoKey"
       ${SOURCE}
       WHERE ${where}

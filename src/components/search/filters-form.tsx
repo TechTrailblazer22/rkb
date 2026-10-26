@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SlidersHorizontal } from "lucide-react";
+import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { inputClass } from "@/components/ui/field";
 import { AMENITIES } from "@/lib/projects/amenities";
@@ -46,12 +46,43 @@ const FEATURED_AMENITIES = [
   "ev_charging",
 ];
 
-function Group({ legend, children }: { legend: string; children: React.ReactNode }) {
+/**
+ * One block of filters that folds away. Open by default for the filters people use most, and
+ * always open while it holds a choice, so an active filter is never hidden. The checkboxes stay in
+ * the form when folded, and keep their fieldset and legend for screen readers.
+ */
+function Group({
+  legend,
+  children,
+  open = false,
+  selected = 0,
+}: {
+  legend: string;
+  children: React.ReactNode;
+  open?: boolean;
+  selected?: number;
+}) {
   return (
-    <fieldset className="border-t border-slate-200 pt-4">
-      <legend className="mb-2 text-sm font-bold">{legend}</legend>
-      {children}
-    </fieldset>
+    <details open={open || selected > 0} className="group border-t border-slate-200 pt-3">
+      <summary className="flex cursor-pointer list-none items-center justify-between rounded py-1 text-sm font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 [&::-webkit-details-marker]:hidden">
+        <span>
+          {legend}
+          {selected > 0 && (
+            <span className="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">
+              {selected}
+            </span>
+          )}
+        </span>
+        <ChevronDown
+          className="size-4 text-slate-600 transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        />
+      </summary>
+      <fieldset className="pt-2">
+        <legend className="sr-only">{legend}</legend>
+        {children}
+      </fieldset>
+    </details>
   );
 }
 
@@ -144,7 +175,7 @@ export function FiltersForm({
         </div>
 
         {!hidden.has("types") && (
-          <Group legend="Type">
+          <Group legend="Type" open selected={filters.types.length}>
             {PROJECT_TYPES.map((t) => (
               <Check
                 key={t.value}
@@ -157,7 +188,7 @@ export function FiltersForm({
           </Group>
         )}
 
-        <Group legend="Stage">
+        <Group legend="Stage" selected={filters.stages.length}>
           {PROJECT_STAGES.map((s) => (
             <Check
               key={s.value}
@@ -169,7 +200,11 @@ export function FiltersForm({
           ))}
         </Group>
 
-        <Group legend="Budget">
+        <Group
+          legend="Budget"
+          open
+          selected={Number(filters.budgetMin !== null) + Number(filters.budgetMax !== null)}
+        >
           <div className="grid grid-cols-2 gap-2">
             {(["min", "max"] as const).map((key, i) => (
               <label key={key} className="block text-xs text-slate-600">
@@ -179,7 +214,7 @@ export function FiltersForm({
                   defaultValue={String((i === 0 ? filters.budgetMin : filters.budgetMax) ?? "")}
                   className={`${inputClass} mt-1`}
                 >
-                  <option value="">{key === "min" ? "No minimum" : "No maximum"}</option>
+                  <option value="">{key === "min" ? "No min" : "No max"}</option>
                   {budgets[i].map((v) => (
                     <option key={v} value={v}>
                       {budgetLabel(v)}
@@ -191,7 +226,10 @@ export function FiltersForm({
           </div>
         </Group>
 
-        <Group legend="Plot size">
+        <Group
+          legend="Plot size"
+          selected={Number(filters.sizeMin !== null) + Number(filters.sizeMax !== null)}
+        >
           <div className="grid grid-cols-2 gap-2">
             {(["smin", "smax"] as const).map((key, i) => (
               <label key={key} className="block text-xs text-slate-600">
@@ -201,7 +239,7 @@ export function FiltersForm({
                   defaultValue={String((i === 0 ? filters.sizeMin : filters.sizeMax) ?? "")}
                   className={`${inputClass} mt-1`}
                 >
-                  <option value="">{key === "smin" ? "No minimum" : "No maximum"}</option>
+                  <option value="">{key === "smin" ? "No min" : "No max"}</option>
                   {sizes[i].map((v) => (
                     <option key={v} value={v}>
                       {sizeLabel(v)}
@@ -213,7 +251,7 @@ export function FiltersForm({
           </div>
         </Group>
 
-        <Group legend="Facing (plots still available)">
+        <Group legend="Facing (plots still available)" selected={filters.facings.length}>
           <div className="grid grid-cols-2 gap-x-2">
             {Object.entries(FACING_SLUGS).map(([key, slug]) => (
               <Check
@@ -227,7 +265,10 @@ export function FiltersForm({
           </div>
         </Group>
 
-        <Group legend="Approvals">
+        <Group
+          legend="Approvals"
+          selected={filters.approvals.length + Number(filters.verifiedApprovals)}
+        >
           {(Object.keys(APPROVAL_SLUGS) as (keyof typeof APPROVAL_SLUGS)[]).map((kind) => (
             <Check
               key={kind}
@@ -245,7 +286,7 @@ export function FiltersForm({
           />
         </Group>
 
-        <Group legend="Amenities">
+        <Group legend="Amenities" selected={filters.amenities.length}>
           {amenityChoices.map((a) => (
             <Check
               key={a.code}

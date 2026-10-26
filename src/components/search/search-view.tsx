@@ -108,7 +108,7 @@ export async function SearchView({
       ) : (
         <ShortlistProvider>
           <div className="mt-6 grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <aside>
+            <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto">
               <FiltersForm filters={filters} action={basePath} fixed={fixed} />
             </aside>
 
@@ -122,11 +122,11 @@ export async function SearchView({
                     : `${total} ${total === 1 ? "project" : "projects"}${total > PAGE_SIZE ? ` (showing ${first} to ${last})` : ""}`}
                 </p>
                 <div
-                  className="flex flex-wrap items-center gap-1 text-sm"
+                  className="-mx-4 flex max-w-[100vw] items-center gap-1 overflow-x-auto px-4 pb-1 text-sm whitespace-nowrap sm:mx-0 sm:max-w-full sm:flex-wrap sm:px-0 sm:pb-0"
                   role="group"
                   aria-label="Sort results"
                 >
-                  <span className="mr-1 text-slate-500">Sort:</span>
+                  <span className="mr-1 text-slate-600">Sort:</span>
                   {SORTS.map((sort) => (
                     <Link
                       key={sort}

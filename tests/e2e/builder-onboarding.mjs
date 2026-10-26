@@ -455,6 +455,12 @@ check(
   "verified: overview congratulates them",
   (await o1.page.getByText("You are a Verified Builder").count()) > 0,
 );
+check(
+  "verified: the overview is a dashboard that invites the first project (nothing invented)",
+  (await o1.page.getByTestId("builder-dashboard").count()) === 1 &&
+    (await o1.page.getByText("Add your first project").count()) > 0 &&
+    (await o1.page.getByText("Live projects", { exact: true }).count()) === 0,
+);
 await o1.page.goto(baseUrl + "/portal/profile");
 check(
   "verified: legal identity is locked",

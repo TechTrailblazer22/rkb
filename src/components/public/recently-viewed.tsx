@@ -51,14 +51,14 @@ export function TrackView({ entry }: { entry: Entry }) {
   return null;
 }
 
-export function RecentlyViewed({ exclude }: { exclude?: string }) {
+export function RecentlyViewed({ exclude, className }: { exclude?: string; className?: string }) {
   // The server renders the empty list; the browser then switches to what it remembers.
   const raw = useSyncExternalStore(subscribe, readRaw, () => EMPTY);
   const entries = useMemo(() => parse(raw).filter((e) => e.slug !== exclude), [raw, exclude]);
   if (entries.length === 0) return null;
 
   return (
-    <section aria-labelledby="recent-heading">
+    <section aria-labelledby="recent-heading" className={className}>
       <h2 id="recent-heading" className="text-xl font-bold">
         Recently viewed
       </h2>

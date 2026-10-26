@@ -223,13 +223,13 @@ export default function ForBuildersPage() {
           <SectionHeading title="Why builders need a platform like this" />
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             <div className="rounded-2xl bg-red-50 p-6 sm:p-8">
-              <h3 className="text-xs font-bold tracking-wider text-red-600 uppercase">Today</h3>
+              <h3 className="text-xs font-bold tracking-wider text-red-700 uppercase">Today</h3>
               <div className="mt-5">
                 <Bullets points={TODAY} tone="red" />
               </div>
             </div>
             <div className="rounded-2xl bg-teal-50 p-6 sm:p-8">
-              <h3 className="text-xs font-bold tracking-wider text-teal-700 uppercase">
+              <h3 className="text-xs font-bold tracking-wider text-teal-800 uppercase">
                 With RKB Platform
               </h3>
               <div className="mt-5">

@@ -18,8 +18,6 @@ export type SampleProject = {
   availablePlots: number;
   approvals: string[];
   builder: { name: string; verified: boolean };
-  /** Drives the generated plot-map artwork so each card looks different. */
-  artSeed: number;
 };
 
 export const sampleProjects: SampleProject[] = [
@@ -38,7 +36,6 @@ export const sampleProjects: SampleProject[] = [
     availablePlots: 46,
     approvals: ["RERA", "DTCP"],
     builder: { name: "Anand Realty", verified: true },
-    artSeed: 3,
   },
   {
     slug: "lakeview-farm-retreat",
@@ -55,7 +52,6 @@ export const sampleProjects: SampleProject[] = [
     availablePlots: 29,
     approvals: ["DTCP"],
     builder: { name: "Sri Vari Developers", verified: true },
-    artSeed: 7,
   },
   {
     slug: "orchid-heights",
@@ -72,7 +68,6 @@ export const sampleProjects: SampleProject[] = [
     availablePlots: 61,
     approvals: ["RERA", "CMDA"],
     builder: { name: "Meenakshi Constructions", verified: true },
-    artSeed: 11,
   },
   {
     slug: "sunrise-city-phase-2",
@@ -89,7 +84,6 @@ export const sampleProjects: SampleProject[] = [
     availablePlots: 188,
     approvals: ["RERA", "DTCP"],
     builder: { name: "Kaveri Estates", verified: false },
-    artSeed: 5,
   },
   {
     slug: "metro-business-square",
@@ -106,7 +100,6 @@ export const sampleProjects: SampleProject[] = [
     availablePlots: 22,
     approvals: ["RERA", "Municipal"],
     builder: { name: "Anand Realty", verified: true },
-    artSeed: 13,
   },
   {
     slug: "palm-grove-plots",
@@ -123,6 +116,5 @@ export const sampleProjects: SampleProject[] = [
     availablePlots: 9,
     approvals: ["RERA", "DTCP", "Bank loan"],
     builder: { name: "Sri Vari Developers", verified: true },
-    artSeed: 17,
   },
 ];

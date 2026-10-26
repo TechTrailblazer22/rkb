@@ -209,7 +209,7 @@ type DemoProject = {
 const LIVE_PROJECTS: DemoProject[] = [
   {
     slug: "seed-green-valley-enclave",
-    name: "Seed Green Valley Enclave",
+    name: "Green Valley Enclave",
     type: "PLOTTED",
     stage: "READY_TO_MOVE",
     city: "Hosur",
@@ -224,7 +224,7 @@ const LIVE_PROJECTS: DemoProject[] = [
   },
   {
     slug: "seed-lakeview-farm-retreat",
-    name: "Seed Lakeview Farm Retreat",
+    name: "Lakeview Farm Retreat",
     type: "FARM_HOUSE",
     stage: "UNDER_CONSTRUCTION",
     city: "Hosur",
@@ -239,7 +239,7 @@ const LIVE_PROJECTS: DemoProject[] = [
   },
   {
     slug: "seed-skyline-heights",
-    name: "Seed Skyline Heights",
+    name: "Skyline Heights",
     type: "RESIDENTIAL",
     stage: "PRE_LAUNCH",
     city: "Coimbatore",
@@ -254,7 +254,7 @@ const LIVE_PROJECTS: DemoProject[] = [
   },
   {
     slug: "seed-metro-business-park",
-    name: "Seed Metro Business Park",
+    name: "Metro Business Park",
     type: "COMMERCIAL",
     stage: "UNDER_CONSTRUCTION",
     city: "Chennai",

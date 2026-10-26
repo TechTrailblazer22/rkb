@@ -5,7 +5,8 @@ import { Gallery } from "@/components/public/gallery";
 import { PlotTable, type PublicPlot } from "@/components/public/plot-table";
 import { FACING_OPTIONS } from "@/components/project/steps/plot-fields";
 import { Badge, VerifiedBadge } from "@/components/ui/badge";
-import { PlotGridArt } from "@/components/ui/plot-grid-art";
+import { AvailabilityBar } from "@/components/ui/availability-bar";
+import { MediaPlaceholder } from "@/components/ui/media-placeholder";
 import { amenityLabel } from "@/lib/projects/amenities";
 import { PROJECT_STAGES, PROJECT_TYPES } from "@/lib/projects/fields";
 import type { ProjectViewData } from "@/lib/projects/view";
@@ -134,10 +135,6 @@ export function ProjectView({
     ["Project size", project.acres !== null ? `${project.acres} acres` : null],
     ["Plots or units", project.totalPlots !== null ? String(project.totalPlots) : null],
     [
-      "Available now",
-      plotCounts.total > 0 ? `${plotCounts.AVAILABLE} of ${plotCounts.total}` : null,
-    ],
-    [
       "Plot sizes",
       data.sizeFrom !== null && data.sizeTo !== null
         ? data.sizeFrom === data.sizeTo
@@ -165,14 +162,8 @@ export function ProjectView({
           photos={photos}
           name={project.name}
           fallback={
-            <div className="flex aspect-[16/9] items-center justify-center p-8">
-              <PlotGridArt
-                seed={7}
-                cols={10}
-                rows={5}
-                availableRatio={0.6}
-                className="w-full max-w-md"
-              />
+            <div className="aspect-[16/6] min-h-40">
+              <MediaPlaceholder type={project.type} compact />
             </div>
           }
         />
@@ -212,6 +203,33 @@ export function ProjectView({
           </div>
           {actions && <div className="mt-4 flex flex-wrap gap-3">{actions}</div>}
         </header>
+
+        {plotCounts.total > 0 && (
+          <section
+            aria-labelledby="availability-heading"
+            data-testid="availability-summary"
+            className="rounded-2xl border border-slate-200 bg-white p-5"
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h2 id="availability-heading" className="text-lg font-bold">
+                {plotCounts.AVAILABLE} of {plotCounts.total} plots available
+              </h2>
+              {publicPlots.length > 0 && (
+                <a href="#plots" className="text-sm font-semibold text-teal-700 underline">
+                  See every plot
+                </a>
+              )}
+            </div>
+            <AvailabilityBar
+              available={plotCounts.AVAILABLE}
+              booked={plotCounts.BOOKED + plotCounts.HELD}
+              sold={plotCounts.SOLD}
+              size="md"
+              legend
+              className="mt-3"
+            />
+          </section>
+        )}
 
         {isPublic && (
           <nav

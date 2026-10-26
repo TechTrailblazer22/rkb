@@ -68,15 +68,15 @@ export function PricingPlans() {
               }`}
             >
               <div className={`px-6 py-5 text-center text-white ${headerTone[plan.code]}`}>
-                <h3 className="text-xl font-bold">{plan.name}</h3>
-                <p className="text-sm text-white/80">{plan.audience}</p>
+                <h2 className="text-xl font-bold">{plan.name}</h2>
+                <p className="text-sm text-white">{plan.audience}</p>
               </div>
 
               <div className="flex flex-1 flex-col p-6">
                 <div className="text-center">
                   <p className="text-4xl font-extrabold tracking-tight">
                     {formatRupees(annual ? annualPrice(plan.priceMonthly) : plan.priceMonthly)}
-                    <span className="text-base font-medium text-slate-500">
+                    <span className="text-base font-medium text-slate-600">
                       {annual ? " /year" : " /month"}
                     </span>
                   </p>
@@ -93,7 +93,7 @@ export function PricingPlans() {
                       "Billed every month. Cancel any time."
                     )}
                   </p>
-                  <p className="text-xs text-slate-500">+ {GST_PERCENT}% GST</p>
+                  <p className="text-xs text-slate-600">+ {GST_PERCENT}% GST</p>
                 </div>
 
                 <ul className="mt-6 flex-1 space-y-3">

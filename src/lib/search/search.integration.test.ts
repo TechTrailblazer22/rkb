@@ -137,6 +137,9 @@ describe.skipIf(!url)("marketplace search (real Postgres)", () => {
       const { cards } = await search();
       expect(cards[0]).toMatchObject({
         availablePlots: 1,
+        // a plot on hold is shown to buyers as booked
+        bookedPlots: 2,
+        soldPlots: 1,
         totalPlots: 4,
         priceFrom: 2_000_000,
         priceTo: 5_000_000,
@@ -147,7 +150,8 @@ describe.skipIf(!url)("marketplace search (real Postgres)", () => {
         where: { projectId: p.id, status: "SOLD" },
         data: { status: "AVAILABLE" },
       });
-      expect((await search()).cards[0].availablePlots).toBe(2);
+      const after = (await search()).cards[0];
+      expect(after).toMatchObject({ availablePlots: 2, bookedPlots: 2, soldPlots: 0 });
     });
 
     it("prefers the builder's own price band over the plots'", async () => {
