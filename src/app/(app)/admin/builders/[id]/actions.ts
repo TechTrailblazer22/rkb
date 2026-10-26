@@ -7,7 +7,7 @@ import { revalidateBuilderPages } from "@/lib/projects/revalidate";
 import { getDb } from "@/lib/db";
 import { recordAudit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth/session";
-import { REQUIRED_DOCUMENT_KINDS } from "@/lib/builders/documents";
+import { unapprovedForVerification } from "@/lib/builders/documents";
 import { buildChecklist } from "@/lib/builders/profile";
 import { uniqueSlug } from "@/lib/builders/slug";
 import { nextStatus, type BuilderAction } from "@/lib/builders/status";
@@ -128,15 +128,11 @@ export async function decideBuilder(formData: FormData) {
     const checklist = buildChecklist(builder, builder.documents);
     if (!checklist.profile.done) {
       back(builderId, {
-        error: "The company profile is incomplete or inconsistent, so it cannot be approved.",
+        error: "The company profile has conflicting details, so it cannot be approved.",
       });
     }
-    const approved = new Set(
-      builder.documents.filter((d) => d.status === "APPROVED").map((d) => d.kind),
-    );
-    const unapproved = REQUIRED_DOCUMENT_KINDS.filter((kind) => !approved.has(kind));
-    if (unapproved.length > 0) {
-      back(builderId, { error: "Approve every required document before approving the builder." });
+    if (unapprovedForVerification(builder.documents).length > 0) {
+      back(builderId, { error: "Approve every uploaded document before approving the builder." });
     }
   }
 

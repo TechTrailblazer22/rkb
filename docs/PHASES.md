@@ -340,6 +340,13 @@ Differences from the original plan:
 - **Files go through our server** (not straight from the browser to Cloudinary) so every upload is checked for real file type, size and ownership first.
 - **Routes** are `/portal` (overview), `/portal/profile`, `/portal/documents`, `/portal/plan`, `/portal/review`; admin is `/admin`, `/admin/builders`, `/admin/builders/[id]`.
 
+**Changed after Phase 5: nothing in the company profile or documents is mandatory.** A builder can submit with any field or document left empty (the only thing still needed to submit is choosing a plan). The `required` flag on each field in `src/lib/builders/profile.ts` and each document in `src/lib/builders/documents.ts` is kept and is now `false` everywhere, so a field can be made mandatory again with a one-word change. What stayed the same:
+- Values that are entered are still checked (PAN, GSTIN and mobile formats, and so on), and a PAN that disagrees with the GSTIN, or an expired RERA date, still blocks submitting and approval.
+- A document the admin sent back still blocks resubmitting until it is replaced.
+- **Approval:** nothing has to be uploaded, but every document that was uploaded must be approved before the admin can approve the builder (`unapprovedForVerification`). The Verified badge is never put on a file nobody checked.
+- Progress counts every field and document, so the ring still means something. The overview and review pages say "x of y filled in (all optional)".
+- A builder with no company name can be approved, but has no public page (the page needs a name) and shows as "(no name yet)" in the admin lists.
+
 Not verified against the real services: Cloudinary and Resend (no accounts yet). Run `npm run storage:check` and `npm run mail:check -- you@example.com` once they exist.
 
 ## Phase 4 status (built)

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  PROFILE_KEYS,
   REQUIRED_PROFILE_KEYS,
   buildChecklist,
   crossFieldProblems,
   parseProfileInput,
   type ProfileSnapshot,
 } from "@/lib/builders/profile";
-import { REQUIRED_DOCUMENT_KINDS } from "@/lib/builders/documents";
+import { DOCUMENT_SPECS, REQUIRED_DOCUMENT_KINDS } from "@/lib/builders/documents";
 
 const VALID_GSTIN = "27AAPFU0939F1ZV";
 const MATCHING_PAN = "AAPFU0939F";
@@ -37,10 +38,13 @@ function profile(overrides: Partial<ProfileSnapshot> = {}): ProfileSnapshot {
   };
 }
 
-const allRequiredDocs = REQUIRED_DOCUMENT_KINDS.map((kind) => ({
-  kind,
-  status: "PENDING" as const,
-}));
+const allDocs = DOCUMENT_SPECS.map((spec) => ({ kind: spec.kind, status: "PENDING" as const }));
+
+function emptyProfile(overrides: Partial<ProfileSnapshot> = {}): ProfileSnapshot {
+  const blank = {} as Record<string, unknown>;
+  for (const key of PROFILE_KEYS) blank[key] = key === "serviceCities" ? [] : null;
+  return { ...(blank as ProfileSnapshot), interestedPlan: null, ...overrides };
+}
 
 describe("parseProfileInput", () => {
   it("normalises valid values", () => {
@@ -147,54 +151,59 @@ describe("crossFieldProblems", () => {
 });
 
 describe("buildChecklist", () => {
-  it("is submittable when everything required is present", () => {
-    const list = buildChecklist(profile(), allRequiredDocs);
-    expect(list.percent).toBe(100);
+  it("makes nothing mandatory: no profile field and no document is required", () => {
+    expect(REQUIRED_PROFILE_KEYS).toEqual([]);
+    expect(REQUIRED_DOCUMENT_KINDS).toEqual([]);
+  });
+
+  it("is submittable with an empty profile and no documents, once a plan is chosen", () => {
+    const list = buildChecklist(emptyProfile({ interestedPlan: "GROWTH" }), []);
+    expect(list.profile.missing).toEqual([]);
+    expect(list.documents.missing).toEqual([]);
     expect(list.canSubmit).toBe(true);
   });
 
-  it("reports what is missing", () => {
-    const list = buildChecklist(
-      profile({ companyName: null, pan: "", interestedPlan: null }),
-      allRequiredDocs.slice(1),
-    );
-    expect(list.canSubmit).toBe(false);
-    expect(list.profile.missing.map((m) => m.key).sort()).toEqual(["companyName", "pan"]);
-    expect(list.documents.missing).toEqual(["PAN"]);
+  it("still asks for a plan, which is not a profile field or a document", () => {
+    const list = buildChecklist(emptyProfile(), []);
     expect(list.plan.done).toBe(false);
-    expect(list.percent).toBeLessThan(100);
+    expect(list.canSubmit).toBe(false);
+  });
+
+  it("is submittable with everything filled in", () => {
+    const list = buildChecklist(profile(), allDocs);
+    expect(list.canSubmit).toBe(true);
+    expect(list.profile.complete).toBe(false); // optional fields such as about are still empty
+    expect(list.documents.complete).toBe(true);
+  });
+
+  it("reports progress across every field and document, not just required ones", () => {
+    const empty = buildChecklist(emptyProfile(), []);
+    const some = buildChecklist(profile(), allDocs.slice(0, 2));
+    const more = buildChecklist(profile({ about: "We build homes." }), allDocs);
+    expect(empty.percent).toBe(0);
+    expect(some.percent).toBeGreaterThan(empty.percent);
+    expect(more.percent).toBeGreaterThan(some.percent);
+    expect(more.percent).toBeLessThan(100);
+    expect(some.profile.total).toBe(PROFILE_KEYS.length);
+    expect(some.documents.uploaded).toBe(2);
+    expect(some.documents.total).toBe(DOCUMENT_SPECS.length);
   });
 
   it("counts an empty profile as 0 percent", () => {
-    const empty = profile({
-      companyName: null,
-      type: null,
-      yearEstablished: null,
-      contactPerson: null,
-      contactMobile: null,
-      addressLine: null,
-      city: null,
-      state: null,
-      pincode: null,
-      pan: null,
-      gstin: null,
-      interestedPlan: null,
-    });
-    expect(buildChecklist(empty, []).percent).toBe(0);
-    expect(REQUIRED_PROFILE_KEYS.length).toBe(11);
+    const list = buildChecklist(emptyProfile(), []);
+    expect(list.percent).toBe(0);
+    expect(list.profile.filled).toBe(0);
   });
 
   it("blocks submission while a document is rejected", () => {
-    const docs = allRequiredDocs.map((d, i) =>
-      i === 0 ? { ...d, status: "REJECTED" as const } : d,
-    );
+    const docs = allDocs.map((d, i) => (i === 0 ? { ...d, status: "REJECTED" as const } : d));
     const list = buildChecklist(profile(), docs);
     expect(list.documents.rejected).toEqual(["PAN"]);
     expect(list.canSubmit).toBe(false);
   });
 
   it("blocks submission when the PAN and GSTIN disagree", () => {
-    const list = buildChecklist(profile({ pan: "ABCDE1234F" }), allRequiredDocs);
+    const list = buildChecklist(profile({ pan: "ABCDE1234F" }), allDocs);
     expect(list.profile.done).toBe(false);
     expect(list.canSubmit).toBe(false);
   });

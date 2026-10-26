@@ -35,7 +35,9 @@ export async function generateMetadata({
   const price = priceText(data.priceFrom, data.priceTo);
   const title = `${project.name}${place ? `, ${place}` : ""}`;
   const description = [
-    `${typeName(project.type)} by ${data.builder.companyName}`,
+    data.builder.companyName
+      ? `${typeName(project.type)} by ${data.builder.companyName}`
+      : typeName(project.type),
     price,
     data.plotCounts.total > 0
       ? `${data.plotCounts.AVAILABLE} of ${data.plotCounts.total} plots available`
@@ -100,7 +102,9 @@ export default async function ProjectPage({ params }: PageProps<"/project/[slug]
         url,
         description: project.description ?? undefined,
         image: cover ? [cover.url] : undefined,
-        brand: { "@type": "Organization", name: builder.companyName },
+        brand: builder.companyName
+          ? { "@type": "Organization", name: builder.companyName }
+          : undefined,
         offers:
           data.priceFrom !== null
             ? {

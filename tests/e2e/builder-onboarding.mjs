@@ -41,6 +41,12 @@ const people = {
     email_verified: true,
     name: "Second Owner",
   },
+  owner3: {
+    sub: "auth0|owner3",
+    email: "owner3@test.example",
+    email_verified: true,
+    name: "Blank Owner",
+  },
   buyer: {
     sub: "auth0|buyer",
     email: "buyer@test.example",
@@ -172,7 +178,7 @@ check(
 section("3. Cannot submit yet");
 await o1.page.goto(baseUrl + "/portal/review");
 check(
-  "review: Submit is disabled while items are missing",
+  "review: Submit is disabled until a plan is chosen (the only thing still required)",
   await o1.page.getByRole("button", { name: "Submit for verification" }).isDisabled(),
 );
 
@@ -200,7 +206,7 @@ for (const kind of ["PAN", "GST", "BUSINESS_PROOF", "IDENTITY_PROOF", "ADDRESS_P
     .waitFor({ timeout: 15000 });
 }
 check(
-  "documents: all five required files uploaded",
+  "documents: all five files uploaded",
   (await o1.page.locator('a[href^="/api/documents/"]').count()) === 5,
 );
 check(
@@ -572,6 +578,62 @@ check(
   "access: a builder cannot open the admin console",
   here(o1.page) === "/portal",
   here(o1.page),
+);
+
+// =====================================================================
+section("15. Nothing in the company profile or documents is mandatory");
+const text = async (page) => (await page.locator("body").innerText()).replace(/\s+/g, " ");
+const own3 = await open(people.owner3);
+await acceptTerms(own3.page, "/start-listing");
+await own3.page.getByRole("button", { name: "Create my builder account" }).click();
+await own3.page.waitForURL(/\/portal$/);
+await own3.page.goto(baseUrl + "/portal/profile");
+check(
+  "profile: no field is marked as required",
+  (await own3.page.locator("label span[aria-hidden='true']", { hasText: "*" }).count()) === 0,
+);
+await own3.page.goto(baseUrl + "/portal/documents");
+check(
+  "documents: every document is marked optional and none is starred",
+  (await own3.page.getByText("Optional", { exact: true }).count()) === 7 &&
+    (await own3.page.locator("h3 span[aria-hidden='true']", { hasText: "*" }).count()) === 0,
+);
+await own3.page.goto(baseUrl + "/portal/plan");
+await own3.page.locator('input[name="plan"][value="STARTER"]').check({ force: true });
+await own3.page.getByRole("button", { name: "Save and continue" }).click();
+await own3.page.waitForURL(/\/portal\/review/);
+check(
+  "review: an empty profile and no documents can be submitted",
+  await own3.page.getByRole("button", { name: "Submit for verification" }).isEnabled(),
+);
+check(
+  "review: says the details are optional rather than listing them as needed",
+  (await text(own3.page)).includes("All are optional") &&
+    !(await text(own3.page)).includes("still needed"),
+);
+await own3.page.getByRole("button", { name: "Submit for verification" }).click();
+await own3.page.waitForURL(/\/portal$/);
+check(
+  "submit: the blank application is with the team",
+  (await text(own3.page)).includes("with our team") ||
+    (await text(own3.page)).includes("under review"),
+);
+await adm.page.goto(baseUrl + "/admin/builders?status=SUBMITTED");
+await adm.page.getByRole("link", { name: "(no name yet)" }).first().click();
+await adm.page.waitForURL(/\/admin\/builders\/.+/);
+check(
+  "admin: opens a blank application without errors",
+  (await adm.page.getByText("Company details").count()) > 0,
+);
+check(
+  "admin: with nothing uploaded, nothing blocks approval",
+  await adm.page.getByRole("button", { name: "Approve builder" }).isEnabled(),
+);
+await adm.page.getByRole("button", { name: "Approve builder" }).click();
+await adm.page.waitForURL(/saved=Decision/);
+check(
+  "admin: a nameless builder can be approved",
+  (await adm.page.getByText("Verified", { exact: true }).count()) > 0,
 );
 
 await browser.close();

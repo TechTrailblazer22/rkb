@@ -7,7 +7,7 @@ import { buttonClass } from "@/components/ui/button";
 import { inputClass } from "@/components/ui/field";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
-import { DOCUMENT_SPECS, REQUIRED_DOCUMENT_KINDS } from "@/lib/builders/documents";
+import { DOCUMENT_SPECS, unapprovedForVerification } from "@/lib/builders/documents";
 import {
   BUILDER_TYPES,
   PROFILE_FIELDS,
@@ -69,11 +69,8 @@ export default async function AdminBuilderPage({
   const checklist = buildChecklist(builder, builder.documents);
   const values = profileToFormValues(builder);
   const documentByKind = new Map(builder.documents.map((d) => [d.kind, d]));
-  const approvedKinds = new Set(
-    builder.documents.filter((d) => d.status === "APPROVED").map((d) => d.kind),
-  );
-  const allRequiredApproved = REQUIRED_DOCUMENT_KINDS.every((kind) => approvedKinds.has(kind));
-  const readyToApprove = checklist.profile.done && allRequiredApproved;
+  const readyToApprove =
+    checklist.profile.done && unapprovedForVerification(builder.documents).length === 0;
   const underReview = builder.status === "SUBMITTED";
   const owner = builder.members.find((m) => m.role === "OWNER")?.user;
 
@@ -174,8 +171,9 @@ export default async function AdminBuilderPage({
         <h2 className="text-lg font-bold">Documents</h2>
         {underReview && (
           <p className="mt-1 text-sm text-slate-600">
-            Open each file, then approve it or send it back with a note. All required documents must
-            be approved before the builder can be approved.
+            Open each file, then approve it or send it back with a note. No document is mandatory,
+            but every document that was uploaded must be approved before the builder can be
+            approved.
           </p>
         )}
         <ul className="mt-4 space-y-4">
@@ -290,8 +288,8 @@ export default async function AdminBuilderPage({
             </div>
             {!readyToApprove && (
               <p className="text-sm text-amber-700">
-                Approve is available once the profile is complete and every required document is
-                approved.
+                Approve is available once the profile has no conflicts and every uploaded document
+                is approved.
               </p>
             )}
             <div className="flex flex-wrap gap-3">

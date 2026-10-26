@@ -3,7 +3,7 @@ import { AlertTriangle, BadgeCheck, CheckCircle2, Circle, Clock } from "lucide-r
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { buttonClass } from "@/components/ui/button";
 import { requireBuilderContext } from "@/lib/builders/context";
-import { REQUIRED_DOCUMENT_KINDS, documentLabel } from "@/lib/builders/documents";
+import { documentLabel } from "@/lib/builders/documents";
 
 export const metadata = { title: "Builder portal" };
 
@@ -42,7 +42,6 @@ export default async function PortalPage() {
   const { builder, documents, checklist } = await requireBuilderContext("/portal");
   const { status } = builder;
   const rejectedDocuments = documents.filter((d) => d.status === "REJECTED");
-  const uploadedRequired = REQUIRED_DOCUMENT_KINDS.length - checklist.documents.missing.length;
 
   return (
     <div className="space-y-6">
@@ -134,25 +133,23 @@ export default async function PortalPage() {
 
           <ul className="mt-4 divide-y divide-slate-100">
             <Row
-              done={checklist.profile.done}
+              done={checklist.profile.complete}
               title="Company profile"
               detail={
-                checklist.profile.done
-                  ? "All required details are filled in."
-                  : checklist.profile.problems.length > 0
-                    ? checklist.profile.problems[0]
-                    : `${checklist.profile.missing.length} required ${checklist.profile.missing.length === 1 ? "item" : "items"} left`
+                checklist.profile.problems.length > 0
+                  ? checklist.profile.problems[0]
+                  : `${checklist.profile.filled} of ${checklist.profile.total} details filled in (all optional)`
               }
               href="/portal/profile"
               action="Continue"
             />
             <Row
-              done={checklist.documents.done}
+              done={checklist.documents.complete}
               title="Verification documents"
               detail={
                 checklist.documents.rejected.length > 0
                   ? `${checklist.documents.rejected.length} document needs a new file`
-                  : `${uploadedRequired} of ${REQUIRED_DOCUMENT_KINDS.length} required documents uploaded`
+                  : `${checklist.documents.uploaded} of ${checklist.documents.total} documents uploaded (all optional)`
               }
               href="/portal/documents"
               action="Upload"

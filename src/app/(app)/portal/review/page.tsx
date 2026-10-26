@@ -58,20 +58,20 @@ export default async function ReviewPage() {
         </p>
 
         <ul className="mt-5 space-y-3">
-          <Item ok={checklist.profile.missing.length === 0} href="/portal/profile">
-            {checklist.profile.missing.length === 0
-              ? "All required company details are filled in"
-              : `Company profile: still needed: ${checklist.profile.missing.map((m) => m.label).join(", ")}`}
+          <Item ok={checklist.profile.complete} href="/portal/profile">
+            {checklist.profile.missing.length > 0
+              ? `Company profile: still needed: ${checklist.profile.missing.map((m) => m.label).join(", ")}`
+              : `Company profile: ${checklist.profile.filled} of ${checklist.profile.total} details filled in. All are optional, but a fuller profile earns more trust.`}
           </Item>
           {checklist.profile.problems.map((problem) => (
             <Item key={problem} ok={false} href="/portal/profile">
               {problem}
             </Item>
           ))}
-          <Item ok={checklist.documents.missing.length === 0} href="/portal/documents">
-            {checklist.documents.missing.length === 0
-              ? "All required documents are uploaded"
-              : `Documents still needed: ${checklist.documents.missing.map(documentLabel).join(", ")}`}
+          <Item ok={checklist.documents.complete} href="/portal/documents">
+            {checklist.documents.missing.length > 0
+              ? `Documents still needed: ${checklist.documents.missing.map(documentLabel).join(", ")}`
+              : `Documents: ${checklist.documents.uploaded} of ${checklist.documents.total} uploaded. All are optional, but without them our team may not be able to verify you.`}
           </Item>
           {checklist.documents.rejected.length > 0 && (
             <Item ok={false} href="/portal/documents">

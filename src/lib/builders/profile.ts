@@ -1,7 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { BuilderType, DocumentKind, DocumentStatus } from "@/generated/prisma/enums";
 import type { EditMode } from "@/lib/builders/status";
-import { REQUIRED_DOCUMENT_KINDS } from "@/lib/builders/documents";
+import { DOCUMENT_SPECS, REQUIRED_DOCUMENT_KINDS } from "@/lib/builders/documents";
 import {
   isValidGstin,
   isValidPan,
@@ -99,7 +99,7 @@ type ParseResult = { ok: true; value: unknown } | { ok: false; error: string };
 
 type FieldDef = {
   label: string;
-  /** Needed before the profile can be submitted for verification. */
+  /** Needed before the profile can be submitted for verification. Currently no field is. */
   required: boolean;
   /** Legal identity. Locked once verified: changing it would make the badge meaningless. */
   legal: boolean;
@@ -172,20 +172,20 @@ const thisYear = () => new Date().getFullYear();
 export const PROFILE_FIELDS: Record<ProfileKey, FieldDef> = {
   companyName: {
     label: "Company name",
-    required: true,
+    required: false,
     legal: true,
     parse: text("Company name", 2, 120),
   },
   type: {
     label: "Type of business",
-    required: true,
+    required: false,
     legal: true,
     parse: (raw) =>
       BUILDER_TYPES.some((t) => t.value === raw) ? ok(raw) : fail("Choose a type of business."),
   },
   yearEstablished: {
     label: "Year established",
-    required: true,
+    required: false,
     legal: true,
     parse: integer("Year established", 1900, thisYear),
   },
@@ -210,33 +210,33 @@ export const PROFILE_FIELDS: Record<ProfileKey, FieldDef> = {
   website: { label: "Website", required: false, legal: false, parse: website },
   contactPerson: {
     label: "Contact person",
-    required: true,
+    required: false,
     legal: false,
     parse: text("Contact person", 2, 80),
   },
   contactMobile: {
     label: "Contact mobile",
-    required: true,
+    required: false,
     legal: false,
     parse: mobile("the contact mobile"),
   },
   whatsapp: { label: "WhatsApp number", required: false, legal: false, parse: mobile("WhatsApp") },
   addressLine: {
     label: "Office address",
-    required: true,
+    required: false,
     legal: true,
     parse: text("Office address", 5, 200),
   },
-  city: { label: "City", required: true, legal: true, parse: text("City", 2, 60) },
+  city: { label: "City", required: false, legal: true, parse: text("City", 2, 60) },
   state: {
     label: "State",
-    required: true,
+    required: false,
     legal: true,
     parse: (raw) => (INDIAN_STATES.includes(raw) ? ok(raw) : fail("Choose a state.")),
   },
   pincode: {
     label: "PIN code",
-    required: true,
+    required: false,
     legal: true,
     parse: (raw) =>
       isValidPincode(raw) ? ok(raw.trim()) : fail("Enter a valid 6 digit PIN code."),
@@ -244,14 +244,14 @@ export const PROFILE_FIELDS: Record<ProfileKey, FieldDef> = {
   serviceCities: { label: "Cities you build in", required: false, legal: false, parse: cities },
   pan: {
     label: "PAN",
-    required: true,
+    required: false,
     legal: true,
     parse: (raw) =>
       isValidPan(raw) ? ok(normalizePan(raw)) : fail("Enter a valid PAN, for example ABCDE1234F."),
   },
   gstin: {
     label: "GSTIN",
-    required: true,
+    required: false,
     legal: true,
     parse: (raw) =>
       isValidGstin(raw)
@@ -358,8 +358,25 @@ export function crossFieldProblems(profile: ProfileSnapshot): string[] {
 export type DocumentSummary = { kind: DocumentKind; status: DocumentStatus };
 
 export type Checklist = {
-  profile: { done: boolean; missing: { key: ProfileKey; label: string }[]; problems: string[] };
-  documents: { done: boolean; missing: DocumentKind[]; rejected: DocumentKind[] };
+  profile: {
+    /** Nothing required is missing and nothing contradicts itself. */
+    done: boolean;
+    /** Every field is filled in, optional ones included. */
+    complete: boolean;
+    filled: number;
+    total: number;
+    /** Required fields that are empty. */
+    missing: { key: ProfileKey; label: string }[];
+    problems: string[];
+  };
+  documents: {
+    done: boolean;
+    complete: boolean;
+    uploaded: number;
+    total: number;
+    missing: DocumentKind[];
+    rejected: DocumentKind[];
+  };
   plan: { done: boolean };
   percent: number;
   canSubmit: boolean;
@@ -374,19 +391,33 @@ export function buildChecklist(profile: ProfileSnapshot, documents: DocumentSumm
   const rejected = documents.filter((d) => d.status === "REJECTED").map((d) => d.kind);
   const planDone = Boolean(profile.interestedPlan);
 
-  const total = REQUIRED_PROFILE_KEYS.length + REQUIRED_DOCUMENT_KINDS.length + 1;
-  const complete =
-    REQUIRED_PROFILE_KEYS.length -
-    missing.length +
-    (REQUIRED_DOCUMENT_KINDS.length - missingDocs.length) +
-    (planDone ? 1 : 0);
+  // Progress counts every field and document, required or not, so it still means something
+  // when nothing is mandatory.
+  const filled = PROFILE_KEYS.filter((key) => isFilled(profile[key])).length;
+  const uploaded = DOCUMENT_SPECS.filter((spec) => have.has(spec.kind)).length;
+  const total = PROFILE_KEYS.length + DOCUMENT_SPECS.length + 1;
+  const complete = filled + uploaded + (planDone ? 1 : 0);
 
   const profileDone = missing.length === 0 && problems.length === 0;
   const documentsDone = missingDocs.length === 0 && rejected.length === 0;
 
   return {
-    profile: { done: profileDone, missing, problems },
-    documents: { done: documentsDone, missing: missingDocs, rejected },
+    profile: {
+      done: profileDone,
+      complete: filled === PROFILE_KEYS.length && problems.length === 0,
+      filled,
+      total: PROFILE_KEYS.length,
+      missing,
+      problems,
+    },
+    documents: {
+      done: documentsDone,
+      complete: uploaded === DOCUMENT_SPECS.length && rejected.length === 0,
+      uploaded,
+      total: DOCUMENT_SPECS.length,
+      missing: missingDocs,
+      rejected,
+    },
     plan: { done: planDone },
     percent: Math.round((complete / total) * 100),
     canSubmit: profileDone && documentsDone && planDone,

@@ -202,7 +202,7 @@ export function ListingCard({
             </span>
           )}
           <div className="min-w-0 flex-1">
-            {card.builder.slug ? (
+            {card.builder.slug && card.builder.name ? (
               <Link
                 href={`/builder/${card.builder.slug}`}
                 className="relative z-10 block truncate text-sm font-semibold hover:underline"
@@ -210,7 +210,9 @@ export function ListingCard({
                 {card.builder.name}
               </Link>
             ) : (
-              <p className="truncate text-sm font-semibold">{card.builder.name}</p>
+              <p className="truncate text-sm font-semibold">
+                {card.builder.name ?? "Verified builder"}
+              </p>
             )}
             {!card.sample && (
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700">

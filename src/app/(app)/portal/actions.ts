@@ -65,7 +65,7 @@ export async function submitForVerification(_previous: SubmitResult): Promise<Su
   if (!ctx.checklist.canSubmit) {
     return {
       ok: false,
-      message: "Some required items are still missing. Please complete them first.",
+      message: "Some items need attention first. Please check the list above.",
     };
   }
 
