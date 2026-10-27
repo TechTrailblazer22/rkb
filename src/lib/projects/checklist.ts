@@ -34,6 +34,7 @@ export type ChecklistProject = {
   paymentPlan: string | null;
   amenities: string[];
   videoUrl: string | null;
+  tourUrl?: string | null;
   contactName: string | null;
   contactMobile: string | null;
   whatsapp: string | null;
@@ -95,7 +96,7 @@ export function buildProjectChecklist(input: ChecklistInput): ProjectChecklist {
     item(
       "description",
       "basics",
-      `Description (at least ${MIN_DESCRIPTION} characters)`,
+      `Description (${MIN_DESCRIPTION} characters or more reads best)`,
       false,
       (p.description ?? "").trim().length >= MIN_DESCRIPTION,
     ),
@@ -105,12 +106,12 @@ export function buildProjectChecklist(input: ChecklistInput): ProjectChecklist {
     item("acres", "layout", "Project size in acres", false, p.acres !== null),
     item("openArea", "layout", "Open area percentage", false, p.openAreaPercent !== null),
 
-    item("plots", "plots", "At least one plot or unit", false, input.plotCount > 0),
+    item("plots", "plots", "A plot or unit", false, input.plotCount > 0),
 
     item(
       "approval",
       "approvals",
-      "At least one approval with its number (RERA, TNCP or municipal)",
+      "An approval with its number (RERA, TNCP or municipal)",
       false,
       usableApprovals.length > 0,
     ),
@@ -134,12 +135,18 @@ export function buildProjectChecklist(input: ChecklistInput): ProjectChecklist {
     item(
       "amenities",
       "amenities",
-      `At least ${MIN_AMENITIES} amenities`,
+      `Amenities (${MIN_AMENITIES} or more look best)`,
       false,
       p.amenities.length >= MIN_AMENITIES,
     ),
 
-    item("photos", "media", `At least ${MIN_PHOTOS} photos`, false, input.photoCount >= MIN_PHOTOS),
+    item(
+      "photos",
+      "media",
+      `Photos (${MIN_PHOTOS} or more look best)`,
+      false,
+      input.photoCount >= MIN_PHOTOS,
+    ),
     item("layout", "media", "Layout plan", false, input.hasLayout),
     item("brochure", "media", "Brochure", false, input.hasBrochure),
     item("video", "media", "Video", false, filled(p.videoUrl)),

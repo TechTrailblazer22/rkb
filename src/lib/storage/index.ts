@@ -40,11 +40,11 @@ export function brandingKey(builderId: string, which: "logo" | "cover", ext: str
   return `builders/${builderId}/public/${which}-${token()}.${ext}`;
 }
 
-/** Public: a project's photos, layout plan and brochure. Shown to buyers. */
+/** Public: a project's photos, layout plan, brochure and progress photos. Shown to buyers. */
 export function projectMediaKey(
   builderId: string,
   projectId: string,
-  kind: "photo" | "layout" | "brochure",
+  kind: "photo" | "layout" | "brochure" | "progress",
   ext: string,
 ): string {
   return `builders/${builderId}/public/projects/${projectId}/${kind}-${token()}.${ext}`;

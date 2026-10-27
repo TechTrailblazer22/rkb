@@ -49,6 +49,10 @@ export default async function ProjectLayout({
             label: step.label,
             done: projectChecklist.stepDone[step.slug],
           }))}
+          extras={[
+            { slug: "layout-map", label: "Layout map" },
+            { slug: "progress", label: "Progress updates" },
+          ]}
         />
         <div className="min-w-0">{children}</div>
       </div>

@@ -7,6 +7,8 @@ import { BuilderDashboardView } from "@/components/portal/dashboard";
 import { loadBuilderDashboard } from "@/lib/builders/dashboard";
 import { documentLabel } from "@/lib/builders/documents";
 import { getDb } from "@/lib/db";
+import { formatDate } from "@/lib/leads/format";
+import { PLAN_LABELS } from "@/lib/plans";
 
 export const metadata = { title: "Builder portal" };
 
@@ -42,13 +44,52 @@ function Row({
 }
 
 export default async function PortalPage() {
-  const { builder, documents, checklist } = await requireBuilderContext("/portal");
+  const { builder, documents, checklist, entitlements, memberRole } =
+    await requireBuilderContext("/portal");
   const { status } = builder;
   const rejectedDocuments = documents.filter((d) => d.status === "REJECTED");
   const dashboard = status === "VERIFIED" ? await loadBuilderDashboard(getDb(), builder.id) : null;
+  const subscription =
+    status === "VERIFIED"
+      ? await getDb().subscription.findUnique({
+          where: { builderId: builder.id },
+          select: { currentPeriodEnd: true },
+        })
+      : null;
 
   return (
     <div className="space-y-6">
+      {status === "VERIFIED" && (
+        <section
+          data-testid="plan-summary"
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 text-sm sm:p-5 ${entitlements.active ? "border-slate-200 bg-white" : "border-amber-500/50 bg-amber-50"}`}
+        >
+          <p>
+            {entitlements.plan && subscription ? (
+              <>
+                <strong>{PLAN_LABELS[entitlements.plan]} plan</strong>, until{" "}
+                {formatDate(subscription.currentPeriodEnd)}.
+              </>
+            ) : subscription ? (
+              <>
+                <strong>Your plan has ended.</strong> Your projects are offline until a plan is
+                back.
+              </>
+            ) : (
+              <>
+                <strong>You are not on a plan yet.</strong> Projects can be prepared, but they go
+                live once a plan starts.
+              </>
+            )}
+          </p>
+          {memberRole === "OWNER" && (
+            <Link href="/portal/billing" className={buttonClass("secondary")}>
+              Plan and billing
+            </Link>
+          )}
+        </section>
+      )}
+
       {dashboard && <BuilderDashboardView data={dashboard} />}
 
       {status === "SUBMITTED" && (

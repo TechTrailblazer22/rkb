@@ -37,6 +37,7 @@ function completeProject(overrides: Partial<ChecklistProject> = {}): ChecklistPr
     paymentPlan: null,
     amenities: [],
     videoUrl: null,
+    tourUrl: null,
     contactName: "Anand",
     contactMobile: "9876543210",
     whatsapp: null,
@@ -283,6 +284,26 @@ describe("parseProjectInput", () => {
     ).toBeTruthy();
   });
 
+  it("accepts a plain https link for a 360 tour and refuses anything else", () => {
+    const tour = (value: string) => parseProjectInput("media", { tourUrl: value }, "full");
+    expect(tour("https://my.matterport.com/show/?m=abc").updates).toEqual({
+      tourUrl: "https://my.matterport.com/show/?m=abc",
+    });
+    for (const bad of [
+      "http://my.matterport.com/x",
+      "javascript:alert(1)",
+      "https://user:pass@example.com/x",
+      "https://localhost/x",
+      "https://192.168.0.1/x",
+      "https://[::1]/x",
+      "not a link",
+      `https://example.com/${"a".repeat(300)}`,
+    ]) {
+      expect(tour(bad).errors.tourUrl, bad).toBeTruthy();
+      expect(tour(bad).updates).toEqual({});
+    }
+  });
+
   it("only accepts https map links", () => {
     expect(
       parseProjectInput("basics", { mapUrl: "https://maps.google.com/?q=12,77" }, "full").errors,
@@ -386,6 +407,7 @@ describe("field definitions", () => {
       offers: null,
       amenities: ["park", "gym"],
       videoUrl: null,
+      tourUrl: null,
       contactName: null,
       contactMobile: null,
       whatsapp: null,

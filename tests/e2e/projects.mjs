@@ -166,6 +166,12 @@ await o1.page.locator("#type").selectOption("PLOTTED");
 await o1.page.getByRole("button", { name: "Create" }).click();
 await o1.page.waitForURL(/\/portal\/projects\/[^/]+\/basics$/);
 const projectId = here(o1.page).split("/")[3];
+// a plan in force (Growth: six projects, video, 40 photos); drafts do not need one, going live does
+await sql(
+  `insert into "Subscription"(id,"builderId",plan,source,"currentPeriodStart","currentPeriodEnd","updatedAt")
+   select gen_random_uuid()::text, "builderId", 'GROWTH', 'COMP', now(), now() + interval '60 days', now() from "Project" where id = $1`,
+  [projectId],
+);
 const base = `/portal/projects/${projectId}`;
 check("projects: creating one opens the wizard at step 1", here(o1.page) === `${base}/basics`);
 check(
@@ -1176,6 +1182,11 @@ section("15. A barely filled-in project can be submitted, approved and shown to 
 await sql(
   `update "Builder" set status = 'VERIFIED', "verifiedAt" = now(), "companyName" = 'Second Builders'
    where id = (select bm."builderId" from "BuilderMember" bm join "User" u on u.id = bm."userId" where u.email = 'owner2@test.example')`,
+);
+await sql(
+  `insert into "Subscription"(id,"builderId",plan,source,"currentPeriodStart","currentPeriodEnd","updatedAt")
+   select gen_random_uuid()::text, bm."builderId", 'GROWTH', 'COMP', now(), now() + interval '60 days', now()
+   from "BuilderMember" bm join "User" u on u.id = bm."userId" where u.email = 'owner2@test.example'`,
 );
 await own2.page.goto(baseUrl + "/portal/projects");
 await own2.page.locator("#name").fill("Bare Minimum Layout");

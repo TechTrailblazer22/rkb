@@ -51,8 +51,9 @@ export async function ApprovalsSection({
       <div>
         <h3 className="text-lg font-bold">Approvals</h3>
         <p className="mt-1 text-sm text-slate-600">
-          Add at least one approval with its number. Attach the certificate so our team can verify
-          it; verified approvals show a badge to buyers.
+          Approvals are optional for now. If you have them, add the number and attach the
+          certificate so our team can verify it; verified approvals show a badge to buyers. Projects
+          can go live without any.
           {!editable && " Approvals are locked right now."}
         </p>
       </div>

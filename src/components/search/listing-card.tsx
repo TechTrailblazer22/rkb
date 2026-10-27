@@ -98,6 +98,7 @@ export function ListingCard({
         <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
           <div className="flex flex-wrap gap-1.5">
             {card.sample && <Badge tone="amber">Sample listing</Badge>}
+            {card.promoted && <Badge tone="amber">Featured</Badge>}
             <Badge tone="navy">{card.stageLabel}</Badge>
           </div>
           {!card.sample && <ShortlistHeart projectId={card.id} name={card.name} />}

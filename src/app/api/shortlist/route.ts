@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { getApiUser } from "@/lib/auth/session";
+import { createLimiter } from "@/lib/rate-limit";
 import { listShortlistIds, setShortlisted } from "@/lib/shortlist/service";
+
+const limiter = createLimiter({ max: 120, windowMs: 60_000 });
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +43,9 @@ export async function POST(request: Request) {
   if (auth.user.role !== "BUYER") {
     return json({ error: "Only buyer accounts can save projects." }, 403);
   }
+
+  if (limiter.hit(auth.user.id))
+    return json({ error: "Too many requests. Please slow down." }, 429);
 
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return json({ error: "Invalid request." }, 400);

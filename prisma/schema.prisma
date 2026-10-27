@@ -86,6 +86,10 @@ model User {
   builderMemberships BuilderMember[]
   uploadedDocuments  BuilderDocument[]
   shortlist          Shortlist[]
+  reviews            Review[]
+  bookings           Booking[]
+  leads              Lead[]
+  leadNotes          LeadNote[]
 
   @@index([role])
 }
@@ -128,12 +132,17 @@ model Builder {
   reraNumber    String?
   reraValidTill DateTime?
 
-  interestedPlan PlanCode?
+  interestedPlan  PlanCode?
+  // The linked account that receives token payments (Razorpay Route). Set by staff; without it, online
+  // booking is not offered for this company, because the money would otherwise sit with us.
+  payoutAccountId String?
 
   // Verification workflow
   submittedAt  DateTime?
   reviewedAt   DateTime?
   verifiedAt   DateTime?
+  // When the last daily summary of new enquiries was emailed.
+  lastDigestAt DateTime?
   // Latest message from the reviewer, shown to the builder.
   reviewNote   String?
   reviewedById String?
@@ -141,9 +150,18 @@ model Builder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members   BuilderMember[]
-  documents BuilderDocument[]
-  projects  Project[]
+  members       BuilderMember[]
+  leads         Lead[]
+  subscription  Subscription?
+  bookings      Booking[]
+  reviews       Review[]
+  reports       PerformanceReport[]
+  paymentOrders PaymentOrder[]
+  invoices      Invoice[]
+  teamInvites   TeamInvite[]
+  featuredDays  FeaturedDay[]
+  documents     BuilderDocument[]
+  projects      Project[]
 
   @@index([status])
   @@index([pan])
@@ -308,6 +326,8 @@ model Project {
 
   amenities String[] @default([])
   videoUrl  String?
+  // A link to a 360-degree tour, shown as a button. Premier plan.
+  tourUrl   String?
 
   // Contact
   contactName       String?
@@ -321,16 +341,25 @@ model Project {
   publishedAt  DateTime?
   reviewedAt   DateTime?
   reviewNote   String?
+  // Why a paused project is paused: PLAN_LAPSED resumes by itself when the plan returns;
+  // ADMIN and APPROVAL_EXPIRED do not.
+  pauseReason  String?
   reviewedById String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  builder     Builder           @relation(fields: [builderId], references: [id], onDelete: Cascade)
-  approvals   ProjectApproval[]
-  media       ProjectMedia[]
-  plots       Plot[]
-  shortlisted Shortlist[]
+  builder           Builder            @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  approvals         ProjectApproval[]
+  media             ProjectMedia[]
+  plots             Plot[]
+  shortlisted       Shortlist[]
+  leads             Lead[]
+  featuredDays      FeaturedDay[]
+  projectDailyStats ProjectDailyStat[]
+  layoutShapes      LayoutShape[]
+  progressUpdates   ProgressUpdate[]
+  bookings          Booking[]
 
   @@index([builderId, status])
   @@index([status])
@@ -356,6 +385,8 @@ model ProjectApproval {
   verified     Boolean      @default(false)
   verifiedAt   DateTime?
   reviewNote   String?
+  // The smallest "days left" warning already emailed (30, 7 or 1), so a daily job never repeats one.
+  warnedDays   Int?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -405,7 +436,9 @@ model Plot {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shape    LayoutShape?
+  bookings Booking[]
 
   @@unique([projectId, number])
   @@index([projectId, sortKey])
@@ -445,4 +478,452 @@ model Shortlist {
 
   @@id([userId, projectId])
   @@index([projectId])
+}
+
+// ---------------------------------------------------------------------------------------
+// Enquiries (Phase 6). See docs/LEADS.md.
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  SITE_VISIT
+  NEGOTIATION
+  BOOKED
+  LOST
+}
+
+enum VisitStatus {
+  REQUESTED
+  CONFIRMED
+  DONE
+  CANCELLED
+}
+
+enum NoteKind {
+  BUILDER
+  BUYER
+  SYSTEM
+}
+
+// A buyer's enquiry about one project. The company is stored on the lead as well as the project, so
+// every builder query can be scoped by it directly.
+model Lead {
+  id        String @id @default(cuid())
+  projectId String
+  builderId String
+  buyerId   String
+
+  // What the buyer typed. The mobile is not verified until an SMS provider exists.
+  name           String
+  mobile         String
+  email          String
+  message        String?
+  preferredPlot  String?
+  mobileVerified Boolean @default(false)
+  source         String  @default("project_page")
+
+  status LeadStatus @default(NEW)
+
+  // Consent to share these details with the builder: when, and under which version of the terms.
+  consentAt           DateTime
+  consentTermsVersion String
+
+  followUpAt         DateTime?
+  // Set when a reminder for the current followUpAt has been emailed; cleared when the date changes.
+  reminderSentAt     DateTime?
+  // The latest message from the buyer, so a repeat enquiry floats the lead up the inbox.
+  lastBuyerMessageAt DateTime  @default(now())
+  // Whether the builder has opened the lead since the last buyer message.
+  seenAt             DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  builder Builder     @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  buyer   User        @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  notes   LeadNote[]
+  visits  SiteVisit[]
+
+  @@index([builderId, status, lastBuyerMessageAt])
+  @@index([buyerId, createdAt])
+  @@index([projectId])
+  @@index([followUpAt])
+}
+
+// The lead's timeline: what the buyer wrote, what the builder noted, and what the system did.
+model LeadNote {
+  id        String   @id @default(cuid())
+  leadId    String
+  authorId  String?
+  kind      NoteKind
+  text      String
+  createdAt DateTime @default(now())
+
+  lead   Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt])
+}
+
+model SiteVisit {
+  id          String      @id @default(cuid())
+  leadId      String
+  scheduledAt DateTime
+  status      VisitStatus @default(REQUESTED)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+}
+
+// ---------------------------------------------------------------------------------------
+// Plans, subscriptions and invoices (Phases 7 and 8). See docs/ROADMAP-7-10.md.
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+}
+
+enum SubscriptionSource {
+  MANUAL
+  GATEWAY
+  COMP
+}
+
+enum BillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
+// What a company is on right now. One row per company; the plan, the paid period and what happens
+// next. Everything the company may do is derived from this (see lib/entitlements.ts).
+model Subscription {
+  id                 String             @id @default(cuid())
+  builderId          String             @unique
+  plan               PlanCode
+  interval           BillingInterval    @default(MONTHLY)
+  status             SubscriptionStatus @default(ACTIVE)
+  source             SubscriptionSource
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  // A downgrade the company asked for, applied at the next renewal.
+  pendingPlan        PlanCode?
+  pendingInterval    BillingInterval?
+  // The company will not renew; it keeps the plan to the end of the period.
+  cancelAtPeriodEnd  Boolean            @default(false)
+  // The smallest "days left" reminder already emailed (7, 3 or 1).
+  lastReminderDays   Int?
+  // What was paid for the current period, before GST. An upgrade credits the unused share of this.
+  paidSubtotalPaise  Int                @default(0)
+  note               String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  builder  Builder   @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@index([status, currentPeriodEnd])
+}
+
+enum InvoiceStatus {
+  PAID
+  VOID
+  REFUNDED
+}
+
+// A tax invoice. Amounts are in paise (integers). The bill-to details are copied here, so editing
+// the company profile later never rewrites an invoice that was already issued.
+model Invoice {
+  id               String          @id @default(cuid())
+  number           String          @unique
+  builderId        String
+  subscriptionId   String?
+  description      String
+  plan             PlanCode
+  interval         BillingInterval
+  periodStart      DateTime
+  periodEnd        DateTime
+  subtotalPaise    Int
+  cgstPaise        Int             @default(0)
+  sgstPaise        Int             @default(0)
+  igstPaise        Int             @default(0)
+  totalPaise       Int
+  status           InvoiceStatus   @default(PAID)
+  // How it was paid: "razorpay", "test", "manual" (with a reference) or "comp" (nothing was paid).
+  paymentMethod    String
+  paymentReference String?
+  billTo           Json
+  // Who issued it (name, GSTIN, state, address), copied from the configuration at the time.
+  supplier         Json?
+  sac              String
+  issuedAt         DateTime        @default(now())
+  paidAt           DateTime?
+  refundedAt       DateTime?
+  refundNote       String?
+  createdAt        DateTime        @default(now())
+
+  builder      Builder       @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([builderId, issuedAt])
+}
+
+enum PaymentPurpose {
+  SUBSCRIPTION
+}
+
+enum PaymentStatus {
+  CREATED
+  PAID
+  FAILED
+  EXPIRED
+}
+
+enum PlanChange {
+  SUBSCRIBE
+  RENEW
+  UPGRADE
+}
+
+// A payment we asked a company to make. Our database decides what it buys; the gateway only
+// collects the money. `providerOrderId` is the gateway's id for it.
+model PaymentOrder {
+  id                String          @id @default(cuid())
+  builderId         String
+  purpose           PaymentPurpose  @default(SUBSCRIPTION)
+  change            PlanChange
+  plan              PlanCode
+  interval          BillingInterval
+  // The new period's list price, the credit for the unused part of the old one, and what is taxed.
+  listPaise         Int
+  creditPaise       Int             @default(0)
+  subtotalPaise     Int
+  // What the company pays, GST included. The gateway must report exactly this.
+  totalPaise        Int
+  status            PaymentStatus   @default(CREATED)
+  provider          String
+  providerOrderId   String?         @unique
+  providerPaymentId String?         @unique
+  createdById       String
+  paidAt            DateTime?
+  invoiceId         String?
+  failureReason     String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  builder Builder @relation(fields: [builderId], references: [id], onDelete: Cascade)
+
+  @@index([builderId, createdAt])
+  @@index([status, createdAt])
+}
+
+// Each gateway notification we have handled, by the gateway's own id, so one that arrives twice
+// (they retry) is recognised. Only ids and the type are kept: no card or contact details.
+model PaymentEvent {
+  id              String   @id @default(cuid())
+  provider        String
+  eventId         String
+  type            String
+  providerOrderId String?
+  createdAt       DateTime @default(now())
+
+  @@unique([provider, eventId])
+}
+
+// One counter per financial year, so invoice numbers run 0001, 0002, ... with no gaps.
+model InvoiceCounter {
+  fy   String @id
+  last Int    @default(0)
+}
+
+model TeamInvite {
+  id          String            @id @default(cuid())
+  builderId   String
+  email       String
+  role        BuilderMemberRole
+  // Only a hash of the link's token is stored, so a database leak cannot be used to join a company.
+  tokenHash   String            @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime          @default(now())
+
+  builder Builder @relation(fields: [builderId], references: [id], onDelete: Cascade)
+
+  @@index([builderId])
+  @@index([email])
+}
+
+// A day on which a company has asked for a project to be featured in search.
+model FeaturedDay {
+  projectId String
+  builderId String
+  day       DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  builder Builder @relation(fields: [builderId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, day])
+  @@index([builderId, day])
+  @@index([day])
+}
+
+// ---------------------------------------------------------------------------------------
+// Phase 9: analytics, reviews, the layout map and construction progress.
+
+enum StatEvent {
+  VIEW
+  CALL
+  WHATSAPP
+  SHORTLIST
+  ENQUIRY
+  VISIT
+}
+
+// Counters, not raw events: one row per project, day, event and traffic source, bumped by an atomic
+// upsert, so the free database stays small and no personal data is stored.
+model ProjectDailyStat {
+  projectId String
+  day       DateTime  @db.Date
+  event     StatEvent
+  source    String    @default("direct")
+  count     Int       @default(0)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, day, event, source])
+  @@index([day])
+}
+
+// The monthly performance email, so that a company gets it once per month however often the job runs.
+model PerformanceReport {
+  builderId String
+  month     String
+  sentAt    DateTime @default(now())
+
+  builder Builder @relation(fields: [builderId], references: [id], onDelete: Cascade)
+
+  @@id([builderId, month])
+}
+
+enum ReviewStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+// A buyer's review of a company. Only someone who sent that company an enquiry can write one, once.
+// It is held for staff to publish or reject; the company may reply once (editable).
+model Review {
+  id            String       @id @default(cuid())
+  builderId     String
+  buyerId       String
+  // How the reviewer is shown ("Asha K."), kept here so it survives the buyer account being removed.
+  displayName   String
+  rating        Int
+  body          String
+  status        ReviewStatus @default(PENDING)
+  rejectReason  String?
+  reply         String?
+  repliedAt     DateTime?
+  repliedById   String?
+  moderatedById String?
+  moderatedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  builder Builder @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  buyer   User    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  @@unique([builderId, buyerId])
+  @@index([builderId, status, createdAt])
+  @@index([status, createdAt])
+}
+
+// A rectangle on the layout map, as percentages of the map's width and height, for one plot.
+model LayoutShape {
+  id        String   @id @default(cuid())
+  projectId String
+  plotId    String   @unique
+  x         Float
+  y         Float
+  w         Float
+  h         Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  plot    Plot    @relation(fields: [plotId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+// A dated note (with an optional photo) on how the construction is going, shown on the project page.
+model ProgressUpdate {
+  id            String   @id @default(cuid())
+  projectId     String
+  note          String
+  photoKey      String?
+  createdById   String
+  // How many people were emailed about it.
+  notifiedCount Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+// ---------------------------------------------------------------------------------------
+// Phase 10: online token booking. See docs/BOOKING.md.
+
+enum BookingStatus {
+  // The plot is held for the buyer while the token is paid.
+  HELD
+  PAID
+  // The hold ran out unpaid.
+  EXPIRED
+  CANCELLED
+  // Money arrived that cannot be kept (after the hold ended, or the plot went elsewhere): staff or
+  // the company must refund it.
+  REFUND_DUE
+  REFUNDED
+}
+
+model Booking {
+  id                String        @id @default(cuid())
+  plotId            String?
+  // Kept so the record still reads correctly if the plot is later deleted.
+  plotNumber        String
+  projectId         String
+  builderId         String
+  buyerId           String
+  buyerName         String
+  buyerMobile       String
+  tokenPaise        Int
+  status            BookingStatus @default(HELD)
+  holdExpiresAt     DateTime
+  provider          String
+  providerOrderId   String?       @unique
+  providerPaymentId String?       @unique
+  paidAt            DateTime?
+  refundedAt        DateTime?
+  refundId          String?
+  note              String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  plot    Plot?   @relation(fields: [plotId], references: [id], onDelete: SetNull)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  builder Builder @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  buyer   User    @relation(fields: [buyerId], references: [id], onDelete: Restrict)
+
+  @@index([plotId, status])
+  @@index([status, holdExpiresAt])
+  @@index([builderId, createdAt])
+  @@index([buyerId, createdAt])
 }

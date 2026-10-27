@@ -26,6 +26,8 @@ export type ListingCardData = {
   approvals: { label: string; verified: boolean }[];
   builder: { name: string | null; slug: string | null; logoUrl: string | null };
   coverUrl: string | null;
+  /** Paid placement (featured today, or a Premier company). Shown as "Featured". */
+  promoted?: boolean;
   sample?: boolean;
 };
 
@@ -98,6 +100,7 @@ export async function toCards(db: PrismaClient, rows: SearchRow[]): Promise<List
         logoUrl: safePublicUrl(row.logoKey, 96),
       },
       coverUrl: safePublicUrl(extra?.media[0]?.storageKey, 640),
+      promoted: row.promoted,
     };
   });
 }
@@ -105,7 +108,7 @@ export async function toCards(db: PrismaClient, rows: SearchRow[]): Promise<List
 export async function searchListings(
   db: PrismaClient,
   filters: SearchFilters,
-  options: { limit?: number; builderId?: string } = {},
+  options: { limit?: number; builderId?: string; spotlight?: boolean; plainNewest?: boolean } = {},
 ) {
   const { rows, total } = await searchRows(db, filters, options);
   return { cards: await toCards(db, rows), total };

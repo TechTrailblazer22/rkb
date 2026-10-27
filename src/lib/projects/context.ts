@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import type { Project } from "@/generated/prisma/client";
 import { getDb } from "@/lib/db";
 import { requireBuilderContext, type BuilderContext } from "@/lib/builders/context";
-import { entitlementsForBuilder, type Entitlements } from "@/lib/entitlements";
+import type { Entitlements } from "@/lib/entitlements";
 import type { ProjectChecklist } from "@/lib/projects/checklist";
 import { loadChecklist } from "@/lib/projects/service";
 import { projectEditMode, type ProjectEditMode } from "@/lib/projects/status";
@@ -43,7 +43,7 @@ export async function requireProjectContext(
     project,
     projectMode: builderBlocked ? "locked" : projectEditMode(project.status),
     projectChecklist: checklist,
-    entitlements: entitlementsForBuilder(ctx.builder),
+    entitlements: ctx.entitlements,
   };
 }
 

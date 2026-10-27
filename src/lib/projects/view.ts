@@ -1,8 +1,38 @@
 import "server-only";
 import type { PlotFacing, PlotStatus } from "@/generated/prisma/enums";
 import { getDb } from "@/lib/db";
+import { billingConfig, providerFor } from "@/lib/billing/provider";
+import { bookingAvailability, bookingConfig } from "@/lib/booking/config";
+import { entitlementsForBuilder } from "@/lib/entitlements";
+import { loadLayoutMap, type LayoutMapData } from "@/lib/layout-map/service";
+import { listProgress, type PublicProgress } from "@/lib/progress/service";
+import { ratingSummary, type RatingSummary } from "@/lib/reviews/service";
 import { plotCountsByStatus } from "@/lib/plots/service";
 import { safePublicUrl } from "@/lib/storage/url";
+
+function paymentsConfigured(): boolean {
+  try {
+    return providerFor(billingConfig()) !== null;
+  } catch {
+    return false;
+  }
+}
+
+function bookingOffer(project: {
+  status: string;
+  tokenAmount: number | null;
+  builder: { status: string; payoutAccountId: string | null };
+}): { available: boolean; tokenPaise: number | null } {
+  const result = bookingAvailability({
+    config: bookingConfig(),
+    paymentsConfigured: paymentsConfigured(),
+    projectLive: project.status === "LIVE",
+    builderVerified: project.builder.status === "VERIFIED",
+    payoutAccountId: project.builder.payoutAccountId,
+    tokenRupees: project.tokenAmount,
+  });
+  return { available: result.available, tokenPaise: result.available ? result.tokenPaise : null };
+}
 
 /** Everything the project page needs, with file addresses already worked out. */
 export type ProjectViewData = {
@@ -35,6 +65,7 @@ export type ProjectViewData = {
     offers: string | null;
     amenities: string[];
     videoUrl: string | null;
+    tourUrl: string | null;
     contactName: string | null;
     contactMobile: string | null;
     whatsapp: string | null;
@@ -48,10 +79,18 @@ export type ProjectViewData = {
     verified: boolean;
     logoUrl: string | null;
     yearEstablished: number | null;
+    /** Published reviews of the company: average and count. */
+    rating: RatingSummary;
   };
   photos: { id: string; url: string; thumbUrl: string; isCover: boolean }[];
   layoutUrl: string | null;
   brochureUrl: string | null;
+  /** The interactive map, when the company's plan includes it and one was drawn. */
+  layoutMap: LayoutMapData | null;
+  /** Whether a plot of this project can be booked online right now (token paid through the gateway). */
+  booking: { available: boolean; tokenPaise: number | null };
+  /** Dated construction updates, newest first. */
+  progress: PublicProgress[];
   approvals: {
     id: string;
     kind: string;
@@ -95,6 +134,7 @@ export async function loadProjectView(
           logoKey: true,
           slug: true,
           yearEstablished: true,
+          payoutAccountId: true,
         },
       },
       approvals: { orderBy: { kind: "asc" } },
@@ -103,7 +143,7 @@ export async function loadProjectView(
   });
   if (!project) return null;
 
-  const [plots, plotCounts, aggregate] = await Promise.all([
+  const [plots, plotCounts, aggregate, rating, entitlements, progress] = await Promise.all([
     db.plot.findMany({
       where: { projectId },
       orderBy: { sortKey: "asc" },
@@ -115,7 +155,12 @@ export async function loadProjectView(
       _min: { price: true, sizeSqft: true },
       _max: { price: true, sizeSqft: true },
     }),
+    ratingSummary(db, project.builder.id),
+    entitlementsForBuilder(db, project.builder.id),
+    listProgress(db, projectId, 10),
   ]);
+  // The map is a plan feature: it is shown only while the company's plan includes it.
+  const layoutMap = entitlements.layoutMap ? await loadLayoutMap(db, projectId) : null;
 
   const photos = project.media
     .filter((m) => m.kind === "PHOTO")
@@ -138,10 +183,14 @@ export async function loadProjectView(
       verified: project.builder.status === "VERIFIED",
       logoUrl: safePublicUrl(project.builder.logoKey, 96),
       yearEstablished: project.builder.yearEstablished,
+      rating,
     },
     photos,
     layoutUrl: fileUrl("LAYOUT"),
     brochureUrl: fileUrl("BROCHURE"),
+    layoutMap,
+    booking: bookingOffer(project),
+    progress,
     approvals: project.approvals.map((a) => ({
       id: a.id,
       kind: a.kind,

@@ -239,3 +239,417 @@ ${input.note}`,
     }),
   };
 }
+
+// ---------------------------------------------------------------------------------------
+// Enquiries and reminders (Phase 6)
+
+const IST_FORMAT = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Kolkata",
+});
+const istDate = (date: Date) => IST_FORMAT.format(date);
+
+/** A WhatsApp chat with the buyer, with a first line already typed. Opens on one tap on a phone. */
+export function whatsappLink(mobile: string, text: string): string {
+  return `https://wa.me/91${mobile.replace(/\D/g, "").slice(-10)}?text=${encodeURIComponent(text)}`;
+}
+
+export function newLeadMail(input: {
+  leadId: string;
+  projectName: string;
+  companyName: string | null;
+  buyerName: string;
+  mobile: string;
+  email: string;
+  message: string | null;
+  preferredPlot: string | null;
+  visitAt: Date | null;
+  /** The buyer wrote again on an enquiry that was already open. */
+  repeat: boolean;
+}): MailContent {
+  const link = url(`/portal/leads/${input.leadId}`);
+  const chat = whatsappLink(
+    input.mobile,
+    `Hello ${input.buyerName}, this is ${company(input.companyName)} about ${input.projectName}. Thank you for your enquiry.`,
+  );
+  const lines = [
+    `Name: ${input.buyerName}`,
+    `Mobile: ${input.mobile} (not verified yet)`,
+    `Email: ${input.email}`,
+    input.preferredPlot ? `Plot: ${input.preferredPlot}` : undefined,
+    input.visitAt ? `Wants to visit: ${istDate(input.visitAt)}` : undefined,
+  ].filter((line): line is string => line !== undefined);
+  const heading = input.repeat ? "Another message from a buyer" : "New enquiry";
+  return {
+    subject: `${input.repeat ? "New message" : "New enquiry"} for ${input.projectName} from ${input.buyerName}`,
+    text: plain([
+      `${heading} about "${input.projectName}".`,
+      lines.join("\n"),
+      input.message ? `Message:\n${input.message}` : "No message was written.",
+      `Reply on WhatsApp: ${chat}`,
+      `Open the lead: ${link}`,
+    ]),
+    html: layout({
+      heading,
+      paragraphs: [`About "${input.projectName}".`, ...lines],
+      note: input.message ?? "No message was written.",
+      button: { label: "Open the lead", href: link },
+    }).replace(
+      "</div></div></body></html>",
+      `<p style="margin:0 0 8px"><a href="${escapeHtml(chat)}" style="color:#0b7d75;font-weight:600">Reply on WhatsApp</a></p></div></div></body></html>`,
+    ),
+  };
+}
+
+export function enquirySentMail(input: {
+  projectName: string;
+  companyName: string | null;
+}): MailContent {
+  const link = url("/account/enquiries");
+  const builder = company(input.companyName);
+  return {
+    subject: `Your enquiry about ${input.projectName} was sent`,
+    text: plain([
+      `We have sent your enquiry about "${input.projectName}" to ${builder}.`,
+      "They will contact you on the mobile number you gave. You can follow it here:",
+      link,
+    ]),
+    html: layout({
+      heading: "Your enquiry was sent",
+      paragraphs: [
+        `We have sent your enquiry about "${input.projectName}" to ${builder}.`,
+        "They will contact you on the mobile number you gave.",
+      ],
+      button: { label: "My enquiries", href: link },
+    }),
+  };
+}
+
+export function followUpDueMail(input: {
+  companyName: string | null;
+  leads: { id: string; name: string; projectName: string }[];
+}): MailContent {
+  const link = url("/portal/leads?due=1");
+  const lines = input.leads.map((lead) => `${lead.name} (${lead.projectName})`);
+  const count = input.leads.length;
+  return {
+    subject: `${count} ${count === 1 ? "follow-up is" : "follow-ups are"} due`,
+    text: plain([`These enquiries are due for a follow-up today:`, lines.join("\n"), link]),
+    html: layout({
+      heading: "Follow-ups due",
+      paragraphs: [`These enquiries are due for a follow-up today:`, ...lines],
+      button: { label: "Open my leads", href: link },
+    }),
+  };
+}
+
+export function dailyDigestMail(input: {
+  companyName: string | null;
+  newLeads: number;
+  stillNew: number;
+  followUpsDue: number;
+}): MailContent {
+  const link = url("/portal/leads");
+  const lines = [
+    `${input.newLeads} new ${input.newLeads === 1 ? "enquiry" : "enquiries"} since the last summary.`,
+    `${input.stillNew} ${input.stillNew === 1 ? "enquiry has" : "enquiries have"} not been contacted yet.`,
+    `${input.followUpsDue} ${input.followUpsDue === 1 ? "follow-up is" : "follow-ups are"} due.`,
+  ];
+  return {
+    subject: `Your enquiries today: ${input.newLeads} new`,
+    text: plain([...lines, link]),
+    html: layout({
+      heading: "Your enquiries today",
+      paragraphs: lines,
+      button: { label: "Open my leads", href: link },
+    }),
+  };
+}
+
+export function approvalExpiringMail(input: {
+  projectName: string | null;
+  projectId: string;
+  kind: string;
+  daysLeft: number;
+}): MailContent {
+  const name = projectName(input.projectName);
+  const link = url(`/portal/projects/${input.projectId}/review`);
+  const when =
+    input.daysLeft <= 0
+      ? "at the end of today"
+      : input.daysLeft === 1
+        ? "tomorrow"
+        : `in ${input.daysLeft} days`;
+  return {
+    subject: `The ${input.kind} approval for ${name} expires ${when}`,
+    text: plain([
+      `The ${input.kind} approval listed for "${name}" expires ${when}.`,
+      "When it expires the project is taken offline until the approval is renewed and checked again.",
+      link,
+    ]),
+    html: layout({
+      heading: "An approval is about to expire",
+      paragraphs: [
+        `The ${input.kind} approval listed for "${name}" expires ${when}.`,
+        "When it expires the project is taken offline until the approval is renewed and checked again.",
+      ],
+      button: { label: "Open the project", href: link },
+    }),
+  };
+}
+
+// ---------------------------------------------------------------------------------------
+// Plans and billing (Phases 7 and 8)
+
+export function planEndingMail(input: {
+  companyName: string | null;
+  plan: string;
+  daysLeft: number;
+  endsOn: Date;
+  willNotRenew: boolean;
+}): MailContent {
+  const link = url("/portal/billing");
+  const plan = input.plan.charAt(0) + input.plan.slice(1).toLowerCase();
+  const when = input.daysLeft <= 1 ? "tomorrow" : `in ${input.daysLeft} days`;
+  const lines = [
+    `The ${plan} plan for ${company(input.companyName)} ends ${when} (${istDate(input.endsOn)}).`,
+    input.willNotRenew
+      ? "You chose not to renew, so your projects go offline when it ends. You can change your mind any time before then."
+      : "Renew before then so your projects stay live. If the plan ends, your projects go offline until you renew; nothing is deleted.",
+  ];
+  return {
+    subject: `Your ${plan} plan ends ${when}`,
+    text: plain([...lines, link]),
+    html: layout({
+      heading: "Your plan is about to end",
+      paragraphs: lines,
+      button: { label: "Renew my plan", href: link },
+    }),
+  };
+}
+
+export function paymentReceiptMail(input: {
+  companyName: string | null;
+  plan: string;
+  invoiceNumber: string;
+  totalText: string;
+  paidUntil: Date;
+  invoiceId: string;
+}): MailContent {
+  const link = url(`/portal/billing/invoices/${input.invoiceId}`);
+  const plan = input.plan.charAt(0) + input.plan.slice(1).toLowerCase();
+  const lines = [
+    `We received ${input.totalText} for the ${plan} plan of ${company(input.companyName)}. Thank you.`,
+    `Your plan is paid until ${istDate(input.paidUntil)}. The tax invoice is ${input.invoiceNumber}; you can view and print it from your billing page.`,
+  ];
+  return {
+    subject: `Payment received: invoice ${input.invoiceNumber}`,
+    text: plain([...lines, link]),
+    html: layout({
+      heading: "Payment received",
+      paragraphs: lines,
+      button: { label: "View the invoice", href: link },
+    }),
+  };
+}
+
+export function planLapsedMail(input: {
+  companyName: string | null;
+  plan: string;
+  projectsPaused: number;
+}): MailContent {
+  const link = url("/portal/billing");
+  const plan = input.plan.charAt(0) + input.plan.slice(1).toLowerCase();
+  const lines = [
+    `The ${plan} plan for ${company(input.companyName)} has ended.`,
+    input.projectsPaused > 0
+      ? `${input.projectsPaused} ${input.projectsPaused === 1 ? "project is" : "projects are"} offline now. Nothing was deleted, and they go live again as soon as you renew.`
+      : "Nothing was deleted. Renew to publish projects again.",
+  ];
+  return {
+    subject: "Your plan has ended and your projects are offline",
+    text: plain([...lines, link]),
+    html: layout({
+      heading: "Your plan has ended",
+      paragraphs: lines,
+      button: { label: "Renew my plan", href: link },
+    }),
+  };
+}
+
+export function teamInviteMail(input: {
+  companyName: string | null;
+  invitedBy: string;
+  role: string;
+  token: string;
+}): MailContent {
+  const link = url(`/join/${input.token}`);
+  const lines = [
+    `${input.invitedBy} has invited you to join ${company(input.companyName)} on RKB Platform as ${input.role}.`,
+    "The link works for 7 days and only for this email address. Log in or create an account with this email, then accept.",
+  ];
+  return {
+    subject: `Join ${company(input.companyName)} on RKB Platform`,
+    text: plain([...lines, link]),
+    html: layout({
+      heading: "You are invited to a team",
+      paragraphs: lines,
+      button: { label: "Accept the invitation", href: link },
+    }),
+  };
+}
+
+export function performanceMail(input: {
+  companyName: string | null;
+  monthLabel: string;
+  views: number;
+  enquiries: number;
+  contacts: number;
+  saved: number;
+  topProject: { name: string; views: number } | null;
+}): MailContent {
+  const link = url("/portal/analytics");
+  const n = (value: number) => value.toLocaleString("en-IN");
+  const lines = [
+    `Here is how ${company(input.companyName)} did on RKB Platform in ${input.monthLabel}.`,
+    `Page views: ${n(input.views)}. Enquiries: ${n(input.enquiries)}. Taps on Call or WhatsApp: ${n(input.contacts)}. Times a project was saved: ${n(input.saved)}.`,
+    input.topProject && input.topProject.views > 0
+      ? `Most viewed project: ${input.topProject.name} (${n(input.topProject.views)} views).`
+      : "No project had any views this month.",
+    "Counts only: no visitor is identified.",
+  ];
+  return {
+    subject: `Your ${input.monthLabel} performance on RKB Platform`,
+    text: plain([...lines, link]),
+    html: layout({
+      heading: `Your ${input.monthLabel} performance`,
+      paragraphs: lines,
+      button: { label: "See the full analytics", href: link },
+    }),
+  };
+}
+
+export function progressUpdateMail(input: {
+  projectName: string;
+  companyName: string | null;
+  note: string;
+  slug: string;
+}): MailContent {
+  const link = url(`/project/${input.slug}#progress`);
+  const lines = [
+    `${company(input.companyName)} posted an update on ${input.projectName}, a project you saved on RKB Platform:`,
+    input.note,
+    "You get this because you saved the project. Remove it from your saved projects to stop these emails. We send at most one a day for a project.",
+  ];
+  return {
+    subject: `New update on ${input.projectName}`,
+    text: plain([...lines, link]),
+    html: layout({
+      heading: `An update on ${input.projectName}`,
+      paragraphs: lines,
+      button: { label: "See the update", href: link },
+    }),
+  };
+}
+
+// ---------------------------------------------------------------------------------------
+// Online token booking (Phase 10)
+
+export function bookingPaidBuyerMail(input: {
+  projectName: string;
+  companyName: string | null;
+  plotNumber: string;
+  tokenText: string;
+  bookingId: string;
+}): MailContent {
+  const link = url(`/account/bookings/${input.bookingId}`);
+  const lines = [
+    `Your token of ${input.tokenText} for plot ${input.plotNumber} at ${input.projectName} was received, and the plot is booked in your name on RKB Platform.`,
+    `${company(input.companyName)} has been told and will contact you to complete the next steps. The token is an advance paid to the builder; keep this email as your receipt.`,
+  ];
+  return {
+    subject: `Plot ${input.plotNumber} booked at ${input.projectName}`,
+    text: plain([...lines, link]),
+    html: layout({
+      heading: "Your plot is booked",
+      paragraphs: lines,
+      button: { label: "View the booking", href: link },
+    }),
+  };
+}
+
+export function bookingPaidBuilderMail(input: {
+  projectName: string;
+  plotNumber: string;
+  tokenText: string;
+  buyerName: string;
+  buyerMobile: string;
+}): MailContent {
+  const link = url("/portal/bookings");
+  const lines = [
+    `${input.buyerName} (${input.buyerMobile}) booked plot ${input.plotNumber} at ${input.projectName} online and paid a token of ${input.tokenText}.`,
+    "The plot now shows as Booked. Please contact the buyer to complete the next steps.",
+  ];
+  return {
+    subject: `Online booking: plot ${input.plotNumber} at ${input.projectName}`,
+    text: plain([...lines, link]),
+    html: layout({
+      heading: "A plot was booked online",
+      paragraphs: lines,
+      button: { label: "See your bookings", href: link },
+    }),
+  };
+}
+
+export function bookingRefundDueMail(input: {
+  projectName: string;
+  plotNumber: string;
+  tokenText: string;
+  reason: string | null;
+}): MailContent {
+  const link = url("/admin/billing");
+  const lines = [
+    `A token payment of ${input.tokenText} for plot ${input.plotNumber} at ${input.projectName} cannot be kept and must be refunded.`,
+    input.reason ?? "The booking could not be completed.",
+  ];
+  return {
+    subject: `Refund needed: plot ${input.plotNumber} at ${input.projectName}`,
+    text: plain([...lines, link]),
+    html: layout({
+      heading: "A token must be refunded",
+      paragraphs: lines,
+      button: { label: "Open billing", href: link },
+    }),
+  };
+}
+
+export function bookingRefundedMail(input: {
+  projectName: string;
+  plotNumber: string;
+  tokenText: string;
+  note: string;
+}): MailContent {
+  const lines = [
+    `Your token of ${input.tokenText} for plot ${input.plotNumber} at ${input.projectName} has been refunded to the account you paid from. Banks usually take 5 to 7 working days to show it.`,
+    `Reason noted: ${input.note}`,
+  ];
+  return {
+    subject: `Token refunded for plot ${input.plotNumber}`,
+    text: plain(lines),
+    html: layout({ heading: "Your token was refunded", paragraphs: lines }),
+  };
+}
+
+export function bookingReconciliationMail(input: { lines: string[] }): MailContent {
+  const link = url("/admin/billing");
+  return {
+    subject: "Bookings and payments need a look",
+    text: plain([...input.lines, link]),
+    html: layout({
+      heading: "Bookings and payments need a look",
+      paragraphs: input.lines,
+      button: { label: "Open billing", href: link },
+    }),
+  };
+}

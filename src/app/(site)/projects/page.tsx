@@ -3,10 +3,9 @@ import { SearchView } from "@/components/search/search-view";
 import { searchMetadata } from "@/components/search/search-meta";
 import { RecentlyViewed } from "@/components/public/recently-viewed";
 import { Container } from "@/components/ui/container";
-import { getDb } from "@/lib/db";
 import { parseFilters, TYPE_NAMES, TYPE_SLUGS } from "@/lib/search/params";
 import { listCities } from "@/lib/search/public";
-import { searchRows } from "@/lib/search/query";
+import { searchOnce } from "@/lib/search/cached";
 
 const HEADING = "Projects for sale";
 const DESCRIPTION =
@@ -16,7 +15,7 @@ export async function generateMetadata({
   searchParams,
 }: PageProps<"/projects">): Promise<Metadata> {
   const filters = parseFilters(await searchParams);
-  const { total } = await searchRows(getDb(), filters, { limit: 1 });
+  const { total } = await searchOnce(filters);
   return searchMetadata({
     title: HEADING,
     description: DESCRIPTION,

@@ -71,3 +71,17 @@ html[data-mode="buyer"] [data-for="builder"],
 html[data-mode="builder"] [data-for="buyer"] {
   display: none !important;
 }
+
+/* Printing (for example "Save as PDF" on an invoice): only the document, on white. */
+@media print {
+  header,
+  footer,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  body,
+  .bg-slate-50 {
+    background: #fff !important;
+  }
+}

@@ -59,7 +59,7 @@ export const STEP_UI: Record<FormStep, StepUi> = {
       {
         key: "description",
         control: { kind: "textarea", rows: 6, maxLength: 1500 },
-        hint: "At least 50 characters. What makes this project worth a visit? Approvals, location, nearby facilities.",
+        hint: "Optional. What makes this project worth a visit? Approvals, location, nearby facilities. A few sentences read best.",
         required: false,
         wide: true,
       },
@@ -86,7 +86,7 @@ export const STEP_UI: Record<FormStep, StepUi> = {
   approvals: {
     title: "Legal and approvals",
     description:
-      "Approvals and land details buyers and banks look for. Add the approval certificates below.",
+      "Everything on this page is optional for now. If you have them, approvals and land details are what buyers and banks look for; verified approvals show a badge.",
     fields: [
       { key: "landUse", control: { kind: "select", options: strings(LAND_USES) }, required: false },
       {
@@ -148,12 +148,19 @@ export const STEP_UI: Record<FormStep, StepUi> = {
   },
   media: {
     title: "Photos and media",
-    description: "Photos are what buyers look at first.",
+    description:
+      "Optional, but photos are what buyers look at first. Your project can be reviewed and go live without them.",
     fields: [
       {
         key: "videoUrl",
         control: { kind: "text", inputMode: "url", placeholder: "https://youtu.be/..." },
         hint: "A YouTube link. Available on the Growth plan and above.",
+        wide: true,
+      },
+      {
+        key: "tourUrl",
+        control: { kind: "text", inputMode: "url", placeholder: "https://my.matterport.com/..." },
+        hint: "A link to a 360° tour (Matterport, Kuula and the like). Available on the Premier plan.",
         wide: true,
       },
     ],

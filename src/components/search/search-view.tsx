@@ -8,8 +8,7 @@ import { buttonClass } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { PlotGridArt } from "@/components/ui/plot-grid-art";
 import { LIST_PROJECT_HREF } from "@/components/site/nav-links";
-import { getDb } from "@/lib/db";
-import { searchListings } from "@/lib/search/cards";
+import { searchOnce } from "@/lib/search/cached";
 import {
   PAGE_SIZE,
   SORTS,
@@ -58,7 +57,7 @@ export async function SearchView({
   intro?: string;
   quickLinks?: { href: string; label: string }[];
 }) {
-  const { cards, total } = await searchListings(getDb(), filters);
+  const { cards, total } = await searchOnce(filters);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const filtered = activeFilterCount(filters, fixed) > 0;
   const nothingLiveYet = total === 0 && !filtered && fixed.length === 0;

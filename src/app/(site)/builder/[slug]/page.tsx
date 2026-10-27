@@ -7,6 +7,8 @@ import { ListingCard } from "@/components/search/listing-card";
 import { VerifiedBadge } from "@/components/ui/badge";
 import { Container } from "@/components/ui/container";
 import { getDb } from "@/lib/db";
+import { Stars } from "@/components/public/stars";
+import { publishedReviews, ratingSummary } from "@/lib/reviews/service";
 import { searchListings } from "@/lib/search/cards";
 import { EMPTY_FILTERS } from "@/lib/search/params";
 import { loadPublicBuilder } from "@/lib/search/public";
@@ -47,10 +49,11 @@ export default async function BuilderPage({ params }: PageProps<"/builder/[slug]
   const builder = await loadPublicBuilder((await params).slug);
   if (!builder) notFound();
 
-  const { cards, total } = await searchListings(getDb(), EMPTY_FILTERS, {
-    builderId: builder.id,
-    limit: 24,
-  });
+  const [{ cards, total }, rating, reviews] = await Promise.all([
+    searchListings(getDb(), EMPTY_FILTERS, { builderId: builder.id, limit: 24 }),
+    ratingSummary(getDb(), builder.id),
+    publishedReviews(getDb(), builder.id, 20),
+  ]);
   const base = getSiteUrl().origin;
   const structured = {
     "@context": "https://schema.org",
@@ -103,6 +106,19 @@ export default async function BuilderPage({ params }: PageProps<"/builder/[slug]
                 {[builder.city, builder.state].filter(Boolean).join(", ")}
               </span>
             )}
+            {rating.average !== null && (
+              <a
+                href="#reviews"
+                className="flex items-center gap-1.5 hover:underline"
+                data-testid="builder-rating"
+              >
+                <Stars rating={rating.average} />
+                <span className="font-semibold text-slate-800">{rating.average.toFixed(1)}</span>
+                <span>
+                  ({rating.count} {rating.count === 1 ? "review" : "reviews"})
+                </span>
+              </a>
+            )}
             {builder.website && (
               <a
                 href={builder.website}
@@ -152,6 +168,52 @@ export default async function BuilderPage({ params }: PageProps<"/builder/[slug]
           </ul>
         </section>
       )}
+
+      <section
+        className="mt-10"
+        id="reviews"
+        aria-labelledby="builder-reviews"
+        data-testid="reviews"
+      >
+        <h2 id="builder-reviews" className="text-xl font-bold">
+          Reviews
+        </h2>
+        {reviews.length === 0 ? (
+          <p className="mt-3 text-slate-600">
+            No reviews yet. Buyers who have enquired with {builder.companyName} can review it.
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-4">
+            {reviews.map((review) => (
+              <li
+                key={review.id}
+                className="rounded-2xl border border-slate-200 bg-white p-5"
+                data-testid="review"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Stars rating={review.rating} />
+                  <p className="text-sm text-slate-600">
+                    {review.displayName}
+                    <span className="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">
+                      Verified enquirer
+                    </span>
+                  </p>
+                </div>
+                <p className="mt-2 whitespace-pre-line text-slate-700">{review.body}</p>
+                {review.reply && (
+                  <div
+                    className="mt-3 rounded-lg bg-slate-50 p-3 text-sm"
+                    data-testid="review-reply"
+                  >
+                    <p className="font-semibold">Reply from {builder.companyName}</p>
+                    <p className="mt-1 whitespace-pre-line text-slate-700">{review.reply}</p>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="mt-10" aria-labelledby="builder-projects">
         <h2 id="builder-projects" className="text-xl font-bold">

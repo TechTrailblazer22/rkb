@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectStatus } from "@/generated/prisma/enums";
-import { entitlementsFor, entitlementsForBuilder } from "@/lib/entitlements";
 import {
   mayPerform,
   nextProjectStatus,
@@ -108,28 +107,5 @@ describe("parseYouTubeId", () => {
     expect(youTubeEmbedUrl("dQw4w9WgXcQ")).toBe(
       "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
     );
-  });
-});
-
-describe("entitlements", () => {
-  it("follows the proposal's plan table", () => {
-    expect(entitlementsFor("STARTER")).toEqual({
-      maxProjects: 2,
-      maxPhotosPerProject: 15,
-      video: false,
-    });
-    expect(entitlementsFor("GROWTH")).toEqual({
-      maxProjects: 6,
-      maxPhotosPerProject: 40,
-      video: true,
-    });
-    expect(entitlementsFor("PREMIER").maxProjects).toBeNull();
-  });
-
-  it("gives everyone Growth limits until billing exists, whatever plan they said they wanted", () => {
-    expect(entitlementsForBuilder({ interestedPlan: "STARTER" })).toEqual(
-      entitlementsFor("GROWTH"),
-    );
-    expect(entitlementsForBuilder({ interestedPlan: null })).toEqual(entitlementsFor("GROWTH"));
   });
 });

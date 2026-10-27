@@ -17,6 +17,7 @@ import {
 } from "@/lib/builders/profile";
 import { formatBytes } from "@/lib/storage/sniff";
 import { formatDateTime } from "@/lib/format";
+import { AdminPlanSection } from "@/components/admin/plan-section";
 import { PLAN_LABELS } from "@/lib/plans";
 import { decideBuilder, reviewDocument } from "./actions";
 
@@ -166,6 +167,8 @@ export default async function AdminBuilderPage({
           ))}
         </dl>
       </section>
+
+      <AdminPlanSection builderId={builder.id} />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <h2 className="text-lg font-bold">Documents</h2>

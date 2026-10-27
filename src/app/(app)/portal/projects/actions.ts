@@ -7,7 +7,6 @@ import type { ApprovalKind } from "@/generated/prisma/enums";
 import { getDb } from "@/lib/db";
 import { parseAdminEmails } from "@/lib/auth/roles";
 import { requireBuilderContext } from "@/lib/builders/context";
-import { entitlementsForBuilder } from "@/lib/entitlements";
 import { sendMail } from "@/lib/mail";
 import { projectSubmittedAdminMail } from "@/lib/mail/templates";
 import { deletePlots, setPlotStatuses, addPlots, updatePlot } from "@/lib/plots/service";
@@ -64,7 +63,7 @@ export async function createProjectAction(formData: FormData) {
     actorId: ctx.user.id,
     name: text(formData, "name"),
     type: text(formData, "type"),
-    entitlements: entitlementsForBuilder(ctx.builder),
+    entitlements: ctx.entitlements,
   });
   if (!result.ok) redirect("/portal/projects?error=" + encodeURIComponent(result.message));
 
@@ -88,6 +87,10 @@ export async function saveProjectStep(
   if (updates.videoUrl && !ctx.entitlements.video) {
     delete updates.videoUrl;
     errors.videoUrl = "Videos are available on the Growth plan and above.";
+  }
+  if (updates.tourUrl && !ctx.entitlements.tour360) {
+    delete updates.tourUrl;
+    errors.tourUrl = "A 360° tour is available on the Premier plan.";
   }
 
   if (Object.keys(updates).length > 0) {
@@ -162,7 +165,8 @@ export async function saveApproval(formData: FormData) {
     update: {
       number,
       ...dates,
-      ...(changed ? { verified: false, verifiedAt: null, reviewNote: null } : {}),
+      // A new date starts the expiry warnings again.
+      ...(changed ? { verified: false, verifiedAt: null, reviewNote: null, warnedDays: null } : {}),
     },
   });
   revalidatePath(`/portal/projects/${projectId}`, "layout");
@@ -403,11 +407,15 @@ export async function generateSeriesAction(formData: FormData) {
 
 export type SubmitState = { ok: false; message: string } | null;
 
+const STAFF_CANNOT =
+  "Only the owner or a manager can do this. Ask them to submit, reopen or archive.";
+
 export async function submitProject(
   projectId: string,
   _previous: SubmitState,
 ): Promise<SubmitState> {
   const ctx = await requireProjectContext(projectId, `/portal/projects/${projectId}/review`);
+  if (ctx.memberRole === "STAFF") return { ok: false, message: STAFF_CANNOT };
   const result = await transitionProject(getDb(), {
     projectId,
     action: "SUBMIT",
@@ -432,6 +440,7 @@ export async function submitProject(
 async function simpleTransition(formData: FormData, action: ProjectAction, done: string) {
   const projectId = text(formData, "projectId");
   const ctx = await requireProjectContext(projectId, `/portal/projects/${projectId}/review`);
+  if (ctx.memberRole === "STAFF") backTo(projectId, "review", { error: STAFF_CANNOT });
   const result = await transitionProject(getDb(), {
     projectId,
     action,

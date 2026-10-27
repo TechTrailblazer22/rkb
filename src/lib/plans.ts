@@ -1,5 +1,5 @@
-// Single source of truth for plan names, prices and features on the marketing pages.
-// Phase 7 moves this into the database and enforces the limits; keep the shape stable.
+// Single source of truth for plan names, prices and features on the marketing pages. The limits
+// each plan enforces live in lib/entitlements.ts, and a test checks the two agree.
 // Prices are proposed launch prices in INR, excluding GST.
 
 export type PlanCode = "STARTER" | "GROWTH" | "PREMIER";

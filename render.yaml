@@ -26,6 +26,29 @@ services:
         sync: false
       - key: AUTH0_SECRET
         generateValue: true # Render creates a random value once; it encrypts session cookies
+      # The secret the scheduler (cron-job.org) sends to /api/cron/*. See docs/LEADS.md.
+      - key: CRON_SECRET
+        generateValue: true
+      # Billing. Leave BILLING_DRIVER empty until a Razorpay account is ready. See docs/BILLING.md.
+      - key: BILLING_DRIVER
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: BILLING_SUPPLIER_NAME
+        sync: false
+      - key: BILLING_SUPPLIER_GSTIN
+        sync: false
+      - key: BILLING_SUPPLIER_STATE
+        sync: false
+      - key: BILLING_SUPPLIER_ADDRESS
+        sync: false
+      # Online token booking: leave empty (off) until docs/BOOKING.md is satisfied.
+      - key: BOOKING_ENABLED
+        sync: false
       - key: ADMIN_EMAILS
         sync: false
       # The public URL, e.g. https://rkb-platform.onrender.com (or your custom domain).

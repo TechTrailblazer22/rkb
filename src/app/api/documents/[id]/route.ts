@@ -6,7 +6,7 @@ import { servePrivateFile } from "@/lib/storage/serve";
 export const dynamic = "force-dynamic";
 
 // Verification documents are private. This is the only way to open one: it checks that the
-// caller is an admin or a member of the owning company, then serves it through servePrivateFile.
+// caller is an admin or the owner of the company, then serves it through servePrivateFile.
 
 const notFound = () => new Response("Not found", { status: 404 });
 
@@ -25,9 +25,16 @@ export async function GET(_request: Request, context: RouteContext<"/api/documen
   if (!document) return notFound();
 
   const isAdmin = user.role === "ADMIN";
-  const isMember = user.builderIds.includes(document.builderId);
-  // Same answer as "does not exist", so document ids cannot be probed.
-  if (!isAdmin && !isMember) return notFound();
+  // The company's identity documents (PAN, GST, ...) are the owner's: a manager or staff member of
+  // the company does not see them. Same answer as "does not exist", so ids cannot be probed.
+  const isOwner =
+    !isAdmin &&
+    user.builderIds.includes(document.builderId) &&
+    (await db.builderMember.findFirst({
+      where: { builderId: document.builderId, userId: user.id, role: "OWNER" },
+      select: { id: true },
+    })) !== null;
+  if (!isAdmin && !isOwner) return notFound();
 
   if (isAdmin) {
     await recordAudit(db, {

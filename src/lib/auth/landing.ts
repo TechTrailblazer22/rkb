@@ -10,8 +10,19 @@ import { safeReturnTo } from "@/lib/auth/paths";
 export type Landing = { path: string; mode: Mode | null };
 
 /** After a login: the account for the door they came through (see resolveLogin). */
-export function dashboardLanding(user: AppUser, intent: LoginIntent | null): Landing {
-  return resolveLogin({ storedRole: user.storedRole, intent, currentMode: user.mode });
+export function dashboardLanding(
+  user: AppUser,
+  intent: LoginIntent | null,
+  next: unknown = null,
+): Landing {
+  const landing = resolveLogin({ storedRole: user.storedRole, intent, currentMode: user.mode });
+  // Someone who logged in from a page (for example to send an enquiry) is taken back to it, but
+  // only into the buyer account, and only to a page on this site.
+  const back = safeReturnTo(typeof next === "string" ? next : null, "");
+  if (back && landing.mode === "buyer" && landing.path === homePathForMode("buyer")) {
+    return { ...landing, path: back };
+  }
+  return landing;
 }
 
 /**
@@ -45,7 +56,11 @@ export function switchLanding(
 export function landingAfterConsent(user: AppUser, destination: string): Landing {
   const url = new URL(destination, "http://placeholder.invalid");
   if (url.pathname === "/dashboard") {
-    return dashboardLanding(user, parseIntent(url.searchParams.get("as")));
+    return dashboardLanding(
+      user,
+      parseIntent(url.searchParams.get("as")),
+      url.searchParams.get("next"),
+    );
   }
   if (url.pathname === "/switch") {
     return switchLanding(user, {

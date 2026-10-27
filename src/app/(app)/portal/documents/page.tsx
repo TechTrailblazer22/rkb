@@ -5,7 +5,9 @@ import { DOCUMENT_SPECS } from "@/lib/builders/documents";
 export const metadata = { title: "Verification documents" };
 
 export default async function DocumentsPage() {
-  const { documents, mode } = await requireBuilderContext("/portal/documents");
+  const { documents, mode } = await requireBuilderContext("/portal/documents", {
+    ownerOnly: true,
+  });
   const byKind = new Map(documents.map((document) => [document.kind, document]));
 
   return (

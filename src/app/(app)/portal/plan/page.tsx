@@ -8,7 +8,7 @@ import { choosePlan } from "../actions";
 export const metadata = { title: "Choose a plan" };
 
 export default async function PlanPage({ searchParams }: PageProps<"/portal/plan">) {
-  const { builder, mode } = await requireBuilderContext("/portal/plan");
+  const { builder, mode } = await requireBuilderContext("/portal/plan", { ownerOnly: true });
   const { error } = await searchParams;
   const locked = mode === "locked";
 

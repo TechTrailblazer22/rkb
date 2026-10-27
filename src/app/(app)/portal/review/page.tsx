@@ -29,7 +29,9 @@ function Item({ ok, children, href }: { ok: boolean; children: React.ReactNode; 
 }
 
 export default async function ReviewPage() {
-  const { builder, checklist, mode } = await requireBuilderContext("/portal/review");
+  const { builder, checklist, mode } = await requireBuilderContext("/portal/review", {
+    ownerOnly: true,
+  });
   const editable = mode === "full";
 
   if (!editable) {

@@ -62,7 +62,8 @@ export async function MediaSection({
       <section className="rounded-2xl border border-slate-200 bg-white p-6" data-section="photos">
         <h3 className="text-lg font-bold">Photos</h3>
         <p className="mt-1 text-sm text-slate-600">
-          At least {MIN_PHOTOS} photos are needed. {photos.length} of {limit} added. The cover photo
+          Photos are optional, and your project can go live without them, but buyers look at them
+          first ({MIN_PHOTOS} or more look best). {photos.length} of {limit} added. The cover photo
           is shown first. Large photos are shrunk automatically before they are uploaded.
         </p>
 

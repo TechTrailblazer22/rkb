@@ -62,3 +62,11 @@ describe("resolveLogin", () => {
     });
   });
 });
+
+describe("loginHref with a page to come back to", () => {
+  it("passes the page along, encoded", () => {
+    expect(loginHref("buyer", { next: "/project/green-valley?enquire=1" })).toBe(
+      "/auth/login?returnTo=%2Fdashboard%3Fas%3Dbuyer%26next%3D%252Fproject%252Fgreen-valley%253Fenquire%253D1",
+    );
+  });
+});

@@ -105,6 +105,15 @@ export function ShortlistProvider({ children }: { children: ReactNode }) {
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
+/**
+ * Who is looking at the page: null outside a provider; `authenticated` is null until the answer
+ * arrives. The enquiry form reads this to decide between "log in" and the form.
+ */
+export function useViewer() {
+  const state = useContext(Context);
+  return state ? { authenticated: state.authenticated, canSave: state.canSave } : null;
+}
+
 export function ShortlistHeart({
   projectId,
   name,

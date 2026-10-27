@@ -7,7 +7,6 @@ import { Field, inputClass } from "@/components/ui/field";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { getDb } from "@/lib/db";
 import { requireBuilderContext } from "@/lib/builders/context";
-import { entitlementsForBuilder } from "@/lib/entitlements";
 import { PROJECT_TYPES } from "@/lib/projects/fields";
 import { loadChecklist } from "@/lib/projects/service";
 import { createProjectAction } from "./actions";
@@ -26,7 +25,7 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/portal/
   });
   const checklists = await Promise.all(projects.map((p) => loadChecklist(db, p.id)));
 
-  const limit = entitlementsForBuilder(ctx.builder).maxProjects;
+  const limit = ctx.entitlements.maxProjects;
   const active = projects.filter((p) => p.status !== "ARCHIVED").length;
   const atLimit = limit !== null && active >= limit;
   const blocked = ctx.builder.status === "SUSPENDED" || ctx.builder.status === "REJECTED";

@@ -1,5 +1,6 @@
 import { revalidateBuilderPages } from "@/lib/projects/revalidate";
 import { getDb } from "@/lib/db";
+import { createLimiter } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { getApiUser } from "@/lib/auth/session";
 import { DOCUMENT_SPECS } from "@/lib/builders/documents";
@@ -10,6 +11,9 @@ import { StorageNotConfiguredError } from "@/lib/storage/types";
 import type { DocumentKind } from "@/generated/prisma/enums";
 
 export const dynamic = "force-dynamic";
+
+// Files are stored and (for photos) shown to the public, so a loop of uploads is limited per person.
+const limiter = createLimiter({ max: 60, windowMs: 60_000 });
 
 const DOCUMENT_KINDS = new Set<string>(DOCUMENT_SPECS.map((spec) => spec.kind));
 const BRANDING = { LOGO: "logo", COVER: "cover" } as const;
@@ -26,6 +30,12 @@ export async function POST(request: Request) {
   if (auth.status === "unauthenticated") return json({ error: "Please log in." }, 401);
   if (auth.status !== "ok") return json({ error: "Please finish signing in first." }, 403);
   const { user } = auth;
+  if (limiter.hit(user.id)) {
+    return Response.json(
+      { error: "Too many uploads. Please wait a little and try again." },
+      { status: 429 },
+    );
+  }
 
   if (user.role !== "BUILDER_OWNER" && user.role !== "BUILDER_TEAM") {
     return json({ error: "Only builder accounts can upload files." }, 403);
@@ -58,9 +68,19 @@ export async function POST(request: Request) {
   const db = getDb();
   const builder = await db.builder.findFirst({
     where: { members: { some: { userId: user.id } } },
-    select: { id: true, status: true, logoKey: true, coverKey: true },
+    select: {
+      id: true,
+      status: true,
+      logoKey: true,
+      coverKey: true,
+      members: { where: { userId: user.id }, select: { role: true } },
+    },
   });
   if (!builder) return json({ error: "No builder account found." }, 403);
+  // The company's documents, logo and cover are the owner's to change.
+  if (builder.members[0]?.role !== "OWNER") {
+    return json({ error: "Only the owner of the company can change this." }, 403);
+  }
 
   // Documents are legal identity: editable only before submission or after changes are requested.
   // Logo and cover are presentation: a verified builder may change them too.

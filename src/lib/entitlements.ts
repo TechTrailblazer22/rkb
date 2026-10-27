@@ -1,31 +1,114 @@
+import type { PrismaClient } from "@/generated/prisma/client";
 import type { PlanCode } from "@/generated/prisma/enums";
 
-// What a plan allows. Every project and upload limit is read from here, so Phase 7 (billing)
-// changes one function, not every page. Limits come from the proposal's plan table.
+// What a company may do, in one place. Every limit and every gated feature in the product reads
+// from here (never from the plan's name), so a rule changes in exactly one place. The marketing
+// table in plans.ts is checked against these limits by a test, so the two cannot disagree.
+// See docs/ROADMAP-7-10.md.
+
 export type Entitlements = {
+  /** The plan the company is on right now, or null when it has none. */
+  plan: PlanCode | null;
+  /** Whether the plan is in force (paid up, or in its short grace period). */
+  active: boolean;
+  /** Live listings need an active plan; drafts do not. */
+  canPublish: boolean;
   /** null means unlimited. */
   maxProjects: number | null;
   maxPhotosPerProject: number;
   video: boolean;
+  tour360: boolean;
+  /** People in the company, the owner included. */
+  teamSeats: number;
+  /** Basic: see and move leads. Full: also follow-ups and reminders, site visits and CSV export. */
+  leads: "basic" | "full";
+  layoutMap: boolean;
+  analytics: "none" | "advanced" | "export";
+  featuredDaysPerMonth: number;
+  priorityListing: boolean;
+  homepageSpotlight: boolean;
 };
 
-const LIMITS: Record<PlanCode, Entitlements> = {
-  STARTER: { maxProjects: 2, maxPhotosPerProject: 15, video: false },
-  GROWTH: { maxProjects: 6, maxPhotosPerProject: 40, video: true },
-  PREMIER: { maxProjects: null, maxPhotosPerProject: 40, video: true },
+export type Limits = Omit<Entitlements, "plan" | "active" | "canPublish">;
+
+export const LIMITS: Record<PlanCode, Limits> = {
+  STARTER: {
+    maxProjects: 2,
+    maxPhotosPerProject: 15,
+    video: false,
+    tour360: false,
+    teamSeats: 1,
+    leads: "basic",
+    layoutMap: false,
+    analytics: "none",
+    featuredDaysPerMonth: 0,
+    priorityListing: false,
+    homepageSpotlight: false,
+  },
+  GROWTH: {
+    maxProjects: 6,
+    maxPhotosPerProject: 40,
+    video: true,
+    tour360: false,
+    teamSeats: 3,
+    leads: "full",
+    layoutMap: true,
+    analytics: "advanced",
+    featuredDaysPerMonth: 2,
+    priorityListing: false,
+    homepageSpotlight: false,
+  },
+  PREMIER: {
+    maxProjects: null,
+    maxPhotosPerProject: 40,
+    video: true,
+    tour360: true,
+    teamSeats: 10,
+    leads: "full",
+    layoutMap: true,
+    analytics: "export",
+    featuredDaysPerMonth: 0,
+    priorityListing: true,
+    homepageSpotlight: true,
+  },
 };
 
-// Until subscriptions exist (Phase 7), every builder gets the Growth limits so nobody is
-// blocked while testing. Phase 7 replaces this with the plan the builder actually pays for.
-export const PLAN_USED_UNTIL_BILLING: PlanCode = "GROWTH";
+/** A company with no plan can prepare drafts, at the smallest plan's size, but cannot go live. */
+const NO_PLAN: Limits = { ...LIMITS.STARTER };
 
-export function entitlementsFor(plan: PlanCode | null | undefined): Entitlements {
-  return LIMITS[plan ?? PLAN_USED_UNTIL_BILLING];
+/** After a plan's paid period ends, it stays in force this long, so a late payment is not a cliff. */
+export const GRACE_DAYS = 3;
+const DAY = 86_400_000;
+
+export function entitlementsForPlan(plan: PlanCode | null): Entitlements {
+  if (!plan) return { plan: null, active: false, canPublish: false, ...NO_PLAN };
+  return { plan, active: true, canPublish: true, ...LIMITS[plan] };
 }
 
-export function entitlementsForBuilder(_builder: {
-  interestedPlan: PlanCode | null;
-}): Entitlements {
-  // `interestedPlan` is only a stated interest, not a purchase, so it grants nothing yet.
-  return entitlementsFor(PLAN_USED_UNTIL_BILLING);
+/** Whether a subscription is in force at a moment: active, and not past its period plus grace. */
+export function isInForce(
+  subscription: { status: string; currentPeriodEnd: Date } | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!subscription || subscription.status !== "ACTIVE") return false;
+  return subscription.currentPeriodEnd.getTime() + GRACE_DAYS * DAY >= now.getTime();
+}
+
+/** What this company may do right now, from its subscription. */
+export async function entitlementsForBuilder(
+  db: PrismaClient,
+  builderId: string,
+  now: Date = new Date(),
+): Promise<Entitlements> {
+  const subscription = await db.subscription.findUnique({
+    where: { builderId },
+    select: { plan: true, status: true, currentPeriodEnd: true },
+  });
+  return entitlementsForPlan(isInForce(subscription, now) ? subscription!.plan : null);
+}
+
+/** Why something is not available, and which plan unlocks it, for the upgrade prompts. */
+export function cheapestPlanWith(test: (limits: Limits) => boolean): PlanCode | null {
+  const order: PlanCode[] = ["STARTER", "GROWTH", "PREMIER"];
+  return order.find((code) => test(LIMITS[code])) ?? null;
 }

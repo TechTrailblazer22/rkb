@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Search } from "lucide-react";
 import { PlotStatusChip } from "@/components/ui/plot-status";
 import { formatRupees } from "@/lib/format";
@@ -26,7 +27,16 @@ const FILTERS = [
 const PAGE = 50;
 
 /** The project's plots, with status chips and a search box that work instantly in the browser. */
-export function PlotTable({ plots, total }: { plots: PublicPlot[]; total: number }) {
+export function PlotTable({
+  plots,
+  total,
+  action,
+}: {
+  plots: PublicPlot[];
+  total: number;
+  /** Public pages offer a way to book an available plot: online, or by asking the builder. */
+  action?: { kind: "book" | "request"; slug: string };
+}) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>("ALL");
   const [query, setQuery] = useState("");
   const [shown, setShown] = useState(PAGE);
@@ -108,6 +118,11 @@ export function PlotTable({ plots, total }: { plots: PublicPlot[]; total: number
               <th scope="col" className="px-4 py-3">
                 Status
               </th>
+              {action && (
+                <th scope="col" className="px-4 py-3">
+                  <span className="sr-only">Book</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -134,11 +149,33 @@ export function PlotTable({ plots, total }: { plots: PublicPlot[]; total: number
                 <td className="px-4 py-2.5">
                   <PlotStatusChip status={plot.status} />
                 </td>
+                {action && (
+                  <td className="px-4 py-2.5">
+                    {plot.status === "AVAILABLE" &&
+                      (action.kind === "book" ? (
+                        <Link
+                          href={`/account/book/${plot.id}`}
+                          data-testid="book-plot"
+                          className="rounded-lg border border-teal-700 px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50"
+                        >
+                          Book online
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/project/${action.slug}?enquire=1&plot=${encodeURIComponent(plot.number)}&request=booking`}
+                          data-testid="request-booking"
+                          className="rounded-lg border border-teal-700 px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50"
+                        >
+                          Request booking
+                        </Link>
+                      ))}
+                  </td>
+                )}
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-600">
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-600">
                   No plots match.
                 </td>
               </tr>

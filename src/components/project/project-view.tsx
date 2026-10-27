@@ -1,6 +1,9 @@
+import { LayoutMapView } from "@/components/public/layout-map-view";
+import { Stars } from "@/components/public/stars";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { BadgeCheck, MapPin, MessageCircle, Phone } from "lucide-react";
+import { BadgeCheck, MapPin, MessageCircle, Phone, Send } from "lucide-react";
+import { EnquiryDialog } from "@/components/public/enquiry-dialog";
 import { Gallery } from "@/components/public/gallery";
 import { PlotTable, type PublicPlot } from "@/components/public/plot-table";
 import { FACING_OPTIONS } from "@/components/project/steps/plot-fields";
@@ -60,6 +63,19 @@ function contactDetails(project: ProjectViewData["project"]) {
   return { phone, whatsapp: tenDigits(project.whatsapp ?? project.contactMobile) };
 }
 
+/** Opens the enquiry form (see EnquiryDialog): a link to #enquire, so it works as a link too. */
+function EnquireLink({ compact }: { compact?: boolean }) {
+  return (
+    <a
+      href="#enquire"
+      data-testid="enquire-button"
+      className={`flex items-center justify-center gap-2 rounded-lg bg-teal-700 text-sm font-semibold text-white hover:bg-teal-700/90 ${compact ? "px-3 py-2.5" : "px-4 py-3"}`}
+    >
+      <Send className="size-4" aria-hidden="true" /> Send enquiry
+    </a>
+  );
+}
+
 function ContactButtons({
   name,
   contact,
@@ -76,7 +92,8 @@ function ContactButtons({
       <a
         href={`tel:+91${contact.phone}`}
         data-testid="call-builder"
-        className={`flex items-center justify-center gap-2 rounded-lg bg-teal-700 text-sm font-semibold text-white hover:bg-teal-700/90 ${size}`}
+        data-track="CALL"
+        className={`flex items-center justify-center gap-2 rounded-lg border border-teal-700 text-sm font-semibold text-teal-700 hover:bg-teal-50 ${size}`}
       >
         <Phone className="size-4" aria-hidden="true" /> {compact ? "Call" : `Call ${contact.phone}`}
       </a>
@@ -85,6 +102,7 @@ function ContactButtons({
         target="_blank"
         rel="noopener noreferrer"
         data-testid="whatsapp-builder"
+        data-track="WHATSAPP"
         className={`flex items-center justify-center gap-2 rounded-lg border border-teal-700 text-sm font-semibold text-teal-700 hover:bg-teal-50 ${size}`}
       >
         <MessageCircle className="size-4" aria-hidden="true" /> WhatsApp
@@ -295,8 +313,21 @@ export function ProjectView({
             <p className="mt-1 text-sm text-slate-600">
               Updated by the builder as plots are booked and sold.
             </p>
+            {data.layoutMap && (
+              <div className="mt-4">
+                <LayoutMapView map={data.layoutMap} projectName={project.name} />
+              </div>
+            )}
             <div className="mt-4">
-              <PlotTable plots={publicPlots} total={plotCounts.total} />
+              <PlotTable
+                plots={publicPlots}
+                total={plotCounts.total}
+                action={
+                  isPublic && project.slug
+                    ? { kind: data.booking.available ? "book" : "request", slug: project.slug }
+                    : undefined
+                }
+              />
             </div>
           </section>
         )}
@@ -409,6 +440,38 @@ export function ProjectView({
           </section>
         )}
 
+        {data.progress.length > 0 && (
+          <section id="progress" className="scroll-mt-28" data-testid="progress-updates">
+            <h2 className="text-xl font-bold">Construction updates</h2>
+            <ol className="mt-3 space-y-4 border-l-2 border-slate-200 pl-5">
+              {data.progress.map((update) => (
+                <li key={update.id} className="relative" data-testid="progress-update">
+                  <span
+                    className="absolute top-1.5 -left-[1.6rem] size-3 rounded-full bg-teal-600"
+                    aria-hidden="true"
+                  />
+                  <p className="text-xs font-semibold text-slate-500">
+                    {new Intl.DateTimeFormat("en-IN", {
+                      dateStyle: "medium",
+                      timeZone: "Asia/Kolkata",
+                    }).format(update.createdAt)}
+                  </p>
+                  <p className="mt-1 text-sm whitespace-pre-line text-slate-800">{update.note}</p>
+                  {update.photoUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element -- builder photo, sized by CSS
+                    <img
+                      src={update.photoUrl}
+                      alt=""
+                      loading="lazy"
+                      className="mt-2 max-h-72 rounded-xl object-cover"
+                    />
+                  )}
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
         {videoId && (
           <section>
             <h2 className="text-xl font-bold">Video</h2>
@@ -422,6 +485,19 @@ export function ProjectView({
                 className="size-full"
               />
             </div>
+          </section>
+        )}
+
+        {project.tourUrl && (
+          <section>
+            <a
+              href={project.tourUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="hover:bg-surface inline-block rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold"
+            >
+              Take the 360° tour (opens in a new tab)
+            </a>
           </section>
         )}
 
@@ -477,6 +553,17 @@ export function ProjectView({
                 <p className="truncate font-bold">{builder.companyName ?? "Builder"}</p>
               )}
               {builder.verified && <VerifiedBadge />}
+              {isPublic && builder.slug && builder.rating.average !== null && (
+                <Link
+                  href={`/builder/${builder.slug}#reviews`}
+                  className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 hover:underline"
+                  data-testid="builder-rating"
+                >
+                  <Stars rating={builder.rating.average} size="size-3.5" />
+                  {builder.rating.average.toFixed(1)} ({builder.rating.count}{" "}
+                  {builder.rating.count === 1 ? "review" : "reviews"})
+                </Link>
+              )}
             </div>
           </div>
           {builder.yearEstablished && (
@@ -510,8 +597,18 @@ export function ProjectView({
             )}
           </div>
 
-          {contact ? (
-            <ContactButtons name={project.name} contact={contact} />
+          {isPublic ? (
+            <div className="grid gap-2">
+              <EnquireLink />
+              {contact ? (
+                <ContactButtons name={project.name} contact={contact} />
+              ) : (
+                <p className="text-xs text-slate-600">
+                  This builder takes enquiries through RKB. Send an enquiry and they will contact
+                  you.
+                </p>
+              )}
+            </div>
           ) : (
             <>
               <button
@@ -519,17 +616,25 @@ export function ProjectView({
                 disabled
                 className="w-full cursor-not-allowed rounded-lg bg-teal-700 px-4 py-3 text-sm font-semibold text-white opacity-60"
               >
-                Contact builder
+                Send enquiry
               </button>
-              <p className="text-xs text-slate-500">
-                {isPublic
-                  ? "This builder takes enquiries through RKB. The enquiry form opens soon."
-                  : "Buyers will contact you from here once the project is live."}
+              <p className="text-xs text-slate-600">
+                Buyers will contact you from here once the project is live.
               </p>
             </>
           )}
         </div>
       </aside>
+
+      {isPublic && project.slug && (
+        <EnquiryDialog
+          slug={project.slug}
+          projectId={project.id}
+          projectName={project.name}
+          companyName={builder.companyName}
+          plotNumbers={publicPlots.map((plot) => plot.number).slice(0, 300)}
+        />
+      )}
 
       {isPublic && (
         <div
@@ -537,14 +642,19 @@ export function ProjectView({
           data-testid="mobile-contact-bar"
         >
           {contact ? (
-            <ContactButtons name={project.name} contact={contact} compact />
+            <div className="grid grid-cols-2 gap-2">
+              <EnquireLink compact />
+              <a
+                href={`tel:+91${contact.phone}`}
+                data-testid="call-builder"
+                data-track="CALL"
+                className="flex items-center justify-center gap-2 rounded-lg border border-teal-700 px-3 py-2.5 text-sm font-semibold text-teal-700 hover:bg-teal-50"
+              >
+                <Phone className="size-4" aria-hidden="true" /> Call
+              </a>
+            </div>
           ) : (
-            <a
-              href="#builder"
-              className="block rounded-lg bg-teal-700 px-4 py-2.5 text-center text-sm font-semibold text-white"
-            >
-              Contact the builder
-            </a>
+            <EnquireLink compact />
           )}
         </div>
       )}

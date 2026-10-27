@@ -2,7 +2,7 @@ import type { PrismaClient, Project } from "@/generated/prisma/client";
 import type { ProjectType } from "@/generated/prisma/enums";
 import { recordAudit } from "@/lib/audit";
 import { uniqueSlug } from "@/lib/builders/slug";
-import type { Entitlements } from "@/lib/entitlements";
+import { entitlementsForBuilder, type Entitlements } from "@/lib/entitlements";
 import { buildProjectChecklist, type ProjectChecklist } from "@/lib/projects/checklist";
 import { PROJECT_FIELDS } from "@/lib/projects/fields";
 import {
@@ -137,6 +137,18 @@ export async function transitionProject(
     return fail("note", `Add a note of at least ${NOTE_MIN} characters so the builder knows why.`);
   }
 
+  // A project goes live only for a company whose plan is in force. Drafts need no plan.
+  if (action === "SUBMIT" || action === "APPROVE" || action === "RESUME") {
+    if (!(await entitlementsForBuilder(db, project.builderId, new Date())).canPublish) {
+      return fail(
+        "no_plan",
+        action === "SUBMIT"
+          ? "Choose and pay for a plan before you submit a project. Your drafts stay saved."
+          : "The company has no active plan, so this project cannot go live.",
+      );
+    }
+  }
+
   if (action === "SUBMIT" || action === "APPROVE") {
     // Listings only ever go live for verified builders.
     if (project.builder.status !== "VERIFIED") {
@@ -182,8 +194,14 @@ export async function transitionProject(
     if (action === "REQUEST_CHANGES" || action === "PAUSE") {
       Object.assign(data, { reviewedAt: now, reviewedById: actor.id, reviewNote: note });
     }
+    if (action === "PAUSE") Object.assign(data, { pauseReason: "ADMIN" });
     if (action === "RESUME")
-      Object.assign(data, { reviewedAt: now, reviewedById: actor.id, reviewNote: null });
+      Object.assign(data, {
+        reviewedAt: now,
+        reviewedById: actor.id,
+        reviewNote: null,
+        pauseReason: null,
+      });
     if (action === "REOPEN") Object.assign(data, { reviewNote: null });
 
     const changed = await tx.project.updateMany({

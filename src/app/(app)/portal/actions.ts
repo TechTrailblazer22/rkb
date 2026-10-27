@@ -23,7 +23,7 @@ export type SaveProfileResult =
  * errors and are left untouched, so a typo in one box never blocks the rest.
  */
 export async function saveProfile(input: Record<string, string>): Promise<SaveProfileResult> {
-  const ctx = await requireBuilderContext("/portal/profile");
+  const ctx = await requireBuilderContext("/portal/profile", { ownerOnly: true });
   const { updates, errors } = parseProfileInput(input, ctx.mode);
 
   if (Object.keys(updates).length > 0) {
@@ -40,7 +40,7 @@ export async function saveProfile(input: Record<string, string>): Promise<SavePr
 
 /** Records which plan the builder is interested in. No payment happens here. */
 export async function choosePlan(formData: FormData) {
-  const ctx = await requireBuilderContext("/portal/plan");
+  const ctx = await requireBuilderContext("/portal/plan", { ownerOnly: true });
   const code = String(formData.get("plan") ?? "");
   const valid = plans.some((plan) => plan.code === code);
   if (!valid) redirect("/portal/plan?error=choose");
@@ -58,7 +58,7 @@ export type SubmitResult = { ok: false; message: string } | null;
 
 /** Sends the application for review, after checking again on the server that it is complete. */
 export async function submitForVerification(_previous: SubmitResult): Promise<SubmitResult> {
-  const ctx = await requireBuilderContext("/portal/review");
+  const ctx = await requireBuilderContext("/portal/review", { ownerOnly: true });
 
   const target = nextStatus(ctx.builder.status, "SUBMIT");
   if (!target) return { ok: false, message: "This application cannot be submitted right now." };

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProjectView, priceText } from "@/components/project/project-view";
+import { AnalyticsBeacon } from "@/components/public/analytics-beacon";
 import { RecentlyViewed, TrackView } from "@/components/public/recently-viewed";
 import { ShareButton } from "@/components/public/share-button";
 import { ShortlistHeart, ShortlistProvider } from "@/components/public/shortlist";
@@ -149,6 +150,7 @@ export default async function ProjectPage({ params }: PageProps<"/project/[slug]
         )}
       </nav>
 
+      <AnalyticsBeacon slug={slug} />
       <TrackView
         entry={{
           slug,

@@ -147,6 +147,10 @@ await db.query(
   `INSERT INTO "Builder"(id,"companyName",status,slug,"verifiedAt","updatedAt") VALUES($1,'Anand Realty','VERIFIED','anand-realty',now(),now())`,
   [builderRow],
 );
+await db.query(
+  `INSERT INTO "Subscription"(id,"builderId",plan,source,"currentPeriodStart","currentPeriodEnd","updatedAt") VALUES(gen_random_uuid()::text,$1,'GROWTH','COMP',now(),now()+interval '60 days',now())`,
+  [builderRow],
+);
 const projectId = randomUUID().replace(/-/g, "");
 await db.query(
   `INSERT INTO "Project"(id,"builderId",slug,status,name,type,stage,city,locality,"publishedAt","updatedAt")
@@ -295,7 +299,7 @@ check(
   "the buyer area has its own tabs",
   (
     await sp.getByRole("navigation", { name: "Your account" }).getByRole("link").allInnerTexts()
-  ).join("|") === "Overview|Saved projects",
+  ).join("|") === "Overview|My enquiries|Saved projects|My data",
 );
 check(
   "the buyer's bar offers to create a builder account",

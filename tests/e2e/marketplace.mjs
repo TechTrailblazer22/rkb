@@ -125,6 +125,11 @@ async function insertBuilder(o) {
       [o.city ?? "Hosur"],
     ],
   );
+  // a plan in force, so the company's projects can be live (Growth has no placement boost)
+  await sql(
+    `INSERT INTO "Subscription"(id,"builderId",plan,source,"currentPeriodStart","currentPeriodEnd","updatedAt") VALUES($1,$2,'GROWTH','COMP',now(),now()+interval '60 days',now())`,
+    [randomUUID().replace(/-/g, ""), id],
+  );
   return id;
 }
 async function insertProject(o) {

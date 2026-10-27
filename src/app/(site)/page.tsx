@@ -72,23 +72,30 @@ const BUYER_STEPS = [
  *  cannot be reached the home page falls back to labelled sample cards. */
 async function loadHomeData(): Promise<{
   cards: ListingCardData[];
+  sponsored: ListingCardData[];
   cities: CityEntry[];
   real: boolean;
 }> {
   try {
-    const [{ cards }, cities] = await Promise.all([
-      searchListings(getDb(), EMPTY_FILTERS, { limit: 6 }),
+    const [{ cards }, { cards: sponsored }, cities] = await Promise.all([
+      searchListings(getDb(), EMPTY_FILTERS, { limit: 6, plainNewest: true }),
+      searchListings(getDb(), EMPTY_FILTERS, { limit: 3, spotlight: true }),
       listCities(),
     ]);
-    if (cards.length > 0) return { cards, cities: cities.slice(0, 8), real: true };
+    if (cards.length > 0) return { cards, sponsored, cities: cities.slice(0, 8), real: true };
   } catch (error) {
     console.error("home: could not load live projects", error);
   }
-  return { cards: sampleProjects.slice(0, 3).map(sampleToCard), cities: [], real: false };
+  return {
+    cards: sampleProjects.slice(0, 3).map(sampleToCard),
+    sponsored: [],
+    cities: [],
+    real: false,
+  };
 }
 
 export default async function HomePage() {
-  const { cards, cities, real } = await loadHomeData();
+  const { cards, sponsored, cities, real } = await loadHomeData();
 
   return (
     <>
@@ -149,6 +156,26 @@ export default async function HomePage() {
           ))}
         </Container>
       </section>
+
+      {sponsored.length > 0 && (
+        <section className="py-16" data-testid="spotlight">
+          <Container>
+            <SectionHeading
+              title="Featured projects"
+              subtitle="Sponsored placements from our Premier builders. Every one is a verified builder."
+            />
+            <ShortlistProvider>
+              <ul className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {sponsored.map((card) => (
+                  <li key={card.id}>
+                    <ListingCard card={card} />
+                  </li>
+                ))}
+              </ul>
+            </ShortlistProvider>
+          </Container>
+        </section>
+      )}
 
       <section className="bg-surface py-16">
         <Container>

@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { ProjectStatus } from "@/generated/prisma/enums";
+import { leadSummary } from "@/lib/leads/service";
 
 // The numbers on a builder's overview page. Everything comes from the database at the moment the
 // page is opened; nothing is stored or estimated.
@@ -26,6 +27,8 @@ export type BuilderDashboard = {
   plots: { total: number; available: number; booked: number; sold: number };
   /** Projects that are waiting on the builder or are not visible to buyers, most recent first. */
   attention: DashboardAttention[];
+  /** Enquiries: how many are new, and how many follow-ups are due. */
+  leads: { new: number; followUpsDue: number };
 };
 
 const ATTENTION: ProjectStatus[] = ["CHANGES_REQUESTED", "PAUSED"];
@@ -34,7 +37,7 @@ export async function loadBuilderDashboard(
   db: PrismaClient,
   builderId: string,
 ): Promise<BuilderDashboard> {
-  const [byStatus, plotRows, attention] = await Promise.all([
+  const [byStatus, plotRows, attention, leads] = await Promise.all([
     db.project.groupBy({
       by: ["status"],
       where: { builderId, status: { not: "ARCHIVED" } },
@@ -51,6 +54,7 @@ export async function loadBuilderDashboard(
       orderBy: { updatedAt: "desc" },
       take: 5,
     }),
+    leadSummary(db, builderId),
   ]);
 
   const projectCount = (status: ProjectStatus) =>
@@ -76,6 +80,7 @@ export async function loadBuilderDashboard(
       booked: plotCount("BOOKED", "HELD"),
       sold: plotCount("SOLD"),
     },
+    leads: { new: leads.new, followUpsDue: leads.followUpsDue },
     attention: attention.map((row) => ({
       id: row.id,
       name: row.name,

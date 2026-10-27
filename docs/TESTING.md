@@ -159,3 +159,29 @@ empty database, build, start with `ADMIN_EMAILS=admin@test.example`), then:
 ```bash
 node tests/e2e/roles.mjs "$(pwd)" http://localhost:3130 $SECRET "$DATABASE_URL"
 ```
+
+## Everything in one place
+
+Unit and database tests: `TEST_DATABASE_URL=postgresql://... npm test` (the migrations applied to the
+database first; about 800 tests). Static checks: `npm run lint`, `npm run typecheck`,
+`node scripts/audit-access.mjs`, `npm audit`.
+
+Browser suites in `tests/e2e/` (each needs a fresh empty database, a fresh `npm run build` and a
+server started with the environment shown at the top of the file; the on-disk page cache means two
+suites on one build contaminate each other):
+
+| Suite | Covers | Extra environment |
+|---|---|---|
+| `roles.mjs` | login doors, buyer and builder accounts, switching, deep links | `ADMIN_EMAILS` |
+| `logged-in-flows.mjs`, `builder-onboarding.mjs`, `projects.mjs` | the earlier phases | local storage, mail folder |
+| `marketplace.mjs` | public search, project and builder pages, SEO | |
+| `leads.mjs` | enquiries, leads, reminders, jobs | `CRON_SECRET`, mail folder |
+| `plans.mjs` | plans, limits, staff billing, team, featured days, plan lifecycle | `CRON_SECRET`, mail folder |
+| `billing.mjs` | checkout, invoices, upgrades, webhook, refunds | `BILLING_DRIVER=test`, `ALLOW_TEST_BILLING=yes`, `BILLING_TEST_SECRET`, supplier variables |
+| `phase9.mjs` | analytics, reviews, layout map, progress | `CRON_SECRET`, mail folder, local storage |
+| `booking.mjs` | token booking, expiry, late payment, refunds | `BOOKING_ENABLED=yes` and the billing test variables |
+| `hardening.mjs` | headers, policy violations on every page, 404, data export and erasure, attacks | local storage |
+
+The runner scripts used for the final audit were thin wrappers that create a Postgres container,
+migrate, build, start the server and run one suite. The test gateway never moves money and the
+suites that use it play the gateway by posting signed webhooks.

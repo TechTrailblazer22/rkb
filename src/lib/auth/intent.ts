@@ -19,8 +19,15 @@ export function parseIntent(value: unknown): LoginIntent | null {
  * The Auth0 address that starts a login through one of the two doors. Auth0 sends the person back
  * to /dashboard, which puts them in the right mode and sends them on (see resolveLogin).
  */
-export function loginHref(intent: LoginIntent, options: { signup?: boolean } = {}): string {
-  const returnTo = encodeURIComponent(`/dashboard?as=${intent}`);
+export function loginHref(
+  intent: LoginIntent,
+  options: {
+    signup?: boolean;
+    /** A page on this site to come back to after logging in. */ next?: string;
+  } = {},
+): string {
+  const next = options.next ? `&next=${encodeURIComponent(options.next)}` : "";
+  const returnTo = encodeURIComponent(`/dashboard?as=${intent}${next}`);
   return `/auth/login?${options.signup ? "screen_hint=signup&" : ""}returnTo=${returnTo}`;
 }
 

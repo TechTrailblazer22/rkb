@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@/generated/prisma/client";
+import { recordStat } from "@/lib/analytics/stats";
 
 export type ShortlistResult = { ok: true; saved: boolean } | { ok: false; code: "not_found" };
 
@@ -35,10 +36,16 @@ export async function setShortlisted(
   });
   if (!project) return { ok: false, code: "not_found" };
 
+  const already = await db.shortlist.findUnique({
+    where: { userId_projectId: { userId, projectId } },
+    select: { projectId: true },
+  });
   await db.shortlist.upsert({
     where: { userId_projectId: { userId, projectId } },
     create: { userId, projectId },
     update: {},
   });
+  // Counted once per person per project, however often the heart is pressed.
+  if (!already) await recordStat(db, { projectId, event: "SHORTLIST" }).catch(() => {});
   return { ok: true, saved: true };
 }

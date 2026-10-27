@@ -5,10 +5,31 @@ import { buttonClass } from "@/components/ui/button";
 import type { BuilderDashboard } from "@/lib/builders/dashboard";
 import { projectStatusLabel } from "@/lib/projects/status";
 
-function Tile({ label, value, hint }: { label: string; value: number; hint?: string }) {
+function Tile({
+  label,
+  value,
+  hint,
+  href,
+}: {
+  label: string;
+  value: number;
+  hint?: string;
+  href?: string;
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <dt className="text-sm text-slate-600">{label}</dt>
+    <div className="relative rounded-xl border border-slate-200 bg-white p-4">
+      <dt className="text-sm text-slate-600">
+        {href ? (
+          <Link
+            href={href}
+            className="after:absolute after:inset-0 after:content-[''] hover:underline"
+          >
+            {label}
+          </Link>
+        ) : (
+          label
+        )}
+      </dt>
       <dd className="mt-1 text-3xl font-extrabold tracking-tight">{value}</dd>
       {hint && <p className="mt-1 text-xs text-slate-600">{hint}</p>}
     </div>
@@ -17,7 +38,7 @@ function Tile({ label, value, hint }: { label: string; value: number; hint?: str
 
 /** The overview of a verified builder: how many projects are where, and the live plot numbers. */
 export function BuilderDashboardView({ data }: { data: BuilderDashboard }) {
-  const { projects, plots, attention } = data;
+  const { projects, plots, attention, leads } = data;
 
   return (
     <div className="space-y-6" data-testid="builder-dashboard">
@@ -45,10 +66,25 @@ export function BuilderDashboardView({ data }: { data: BuilderDashboard }) {
         <>
           <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Tile label="Live projects" value={projects.live} hint="Visible to buyers" />
-            <Tile label="In review" value={projects.inReview} hint="With our team" />
-            <Tile label="Drafts" value={projects.draft} hint="Not submitted yet" />
             <Tile label="Plots available" value={plots.available} hint="Across live projects" />
+            <Tile
+              label="New enquiries"
+              value={leads.new}
+              hint="Not contacted yet"
+              href="/portal/leads?status=NEW"
+            />
+            <Tile
+              label="Follow-ups due"
+              value={leads.followUpsDue}
+              hint="Dates that have arrived"
+              href="/portal/leads?due=1"
+            />
           </dl>
+          <p className="text-sm text-slate-600">
+            {projects.inReview} in review · {projects.draft}{" "}
+            {projects.draft === 1 ? "draft" : "drafts"} ·{" "}
+            {projects.changesRequested + projects.paused} need your attention
+          </p>
 
           <section
             aria-labelledby="live-availability"

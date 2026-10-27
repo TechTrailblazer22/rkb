@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SearchView } from "@/components/search/search-view";
 import { searchMetadata } from "@/components/search/search-meta";
-import { getDb } from "@/lib/db";
 import { parseFilters, TYPE_NAMES, typeFromSlug } from "@/lib/search/params";
 import { cityFromSlug } from "@/lib/search/public";
-import { searchRows } from "@/lib/search/query";
+import { searchOnce } from "@/lib/search/cached";
 
 const FIXED = ["city", "types"] as const;
 
@@ -22,7 +21,7 @@ export async function generateMetadata({
   const found = await resolve(params);
   if (!found) return { title: "Projects not found", robots: { index: false } };
   const filters = parseFilters(await searchParams, { city: found.city.name, types: [found.type] });
-  const { total } = await searchRows(getDb(), filters, { limit: 1 });
+  const { total } = await searchOnce(filters);
   const name = `${TYPE_NAMES[found.type]} in ${found.city.name}`;
   return searchMetadata({
     title: name,

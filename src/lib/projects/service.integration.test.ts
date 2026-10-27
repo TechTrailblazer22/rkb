@@ -1,7 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaClient } from "@/generated/prisma/client";
-import { entitlementsFor } from "@/lib/entitlements";
+import { entitlementsForPlan } from "@/lib/entitlements";
 import {
   addPlots,
   deletePlots,
@@ -45,6 +45,16 @@ describe.skipIf(!url)("projects and plots (real Postgres)", () => {
       },
     });
     builderId = builder.id;
+    await db.subscription.create({
+      data: {
+        builderId,
+        plan: "GROWTH",
+        interval: "MONTHLY",
+        source: "COMP",
+        currentPeriodStart: new Date(Date.now() - 86_400_000),
+        currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
+      },
+    });
   });
 
   afterAll(async () => {
@@ -57,7 +67,7 @@ describe.skipIf(!url)("projects and plots (real Postgres)", () => {
       actorId: userId,
       name,
       type: "PLOTTED",
-      entitlements: entitlementsFor("GROWTH"),
+      entitlements: entitlementsForPlan("GROWTH"),
     });
     if (!result.ok) throw new Error(result.message);
     return result.project;
@@ -122,7 +132,7 @@ describe.skipIf(!url)("projects and plots (real Postgres)", () => {
     });
 
     it("refuses a bad name or type", async () => {
-      const base = { builderId, actorId: userId, entitlements: entitlementsFor("GROWTH") };
+      const base = { builderId, actorId: userId, entitlements: entitlementsForPlan("GROWTH") };
       expect((await createProject(db, { ...base, name: "ab", type: "PLOTTED" })).ok).toBe(false);
       expect((await createProject(db, { ...base, name: "Fine Name", type: "CASTLE" })).ok).toBe(
         false,
@@ -134,7 +144,7 @@ describe.skipIf(!url)("projects and plots (real Postgres)", () => {
         builderId,
         actorId: userId,
         type: "PLOTTED",
-        entitlements: entitlementsFor("STARTER"),
+        entitlements: entitlementsForPlan("STARTER"),
       };
       const first = await createProject(db, { ...starter, name: "First Project" });
       await createProject(db, { ...starter, name: "Second Project" });
@@ -151,7 +161,7 @@ describe.skipIf(!url)("projects and plots (real Postgres)", () => {
         builderId,
         actorId: userId,
         type: "PLOTTED",
-        entitlements: entitlementsFor("PREMIER"),
+        entitlements: entitlementsForPlan("PREMIER"),
       };
       for (let i = 0; i < 8; i++)
         expect((await createProject(db, { ...premier, name: `Project ${i}` })).ok).toBe(true);
@@ -215,6 +225,70 @@ describe.skipIf(!url)("projects and plots (real Postgres)", () => {
           builderId,
         }),
       ).toMatchObject({ ok: false, code: "incomplete" });
+    });
+
+    describe("the plan", () => {
+      const submit = (projectId: string) =>
+        transitionProject(db, { projectId, action: "SUBMIT", actor: builderActor(), builderId });
+
+      it("lets a company with no plan prepare a draft but not submit it", async () => {
+        const project = await newProject();
+        await db.subscription.delete({ where: { builderId } });
+        expect(await submit(project.id)).toMatchObject({ ok: false, code: "no_plan" });
+        expect((await db.project.findUniqueOrThrow({ where: { id: project.id } })).status).toBe(
+          "DRAFT",
+        );
+      });
+
+      it("treats an ended plan as no plan once the grace days are over", async () => {
+        const project = await newProject();
+        await db.subscription.update({
+          where: { builderId },
+          data: { currentPeriodEnd: new Date(Date.now() - 4 * 86_400_000) },
+        });
+        expect(await submit(project.id)).toMatchObject({ ok: false, code: "no_plan" });
+      });
+
+      it("still accepts a plan that ended a day ago, inside the grace days", async () => {
+        const project = await newProject();
+        await db.subscription.update({
+          where: { builderId },
+          data: { currentPeriodEnd: new Date(Date.now() - 86_400_000) },
+        });
+        expect((await submit(project.id)).ok).toBe(true);
+      });
+
+      it("will not approve or resume a project when the plan has gone", async () => {
+        const project = await newProject();
+        expect((await submit(project.id)).ok).toBe(true);
+        await db.subscription.update({ where: { builderId }, data: { status: "EXPIRED" } });
+        expect(
+          await transitionProject(db, { projectId: project.id, action: "APPROVE", actor: admin }),
+        ).toMatchObject({ ok: false, code: "no_plan" });
+        await db.project.update({ where: { id: project.id }, data: { status: "PAUSED" } });
+        expect(
+          await transitionProject(db, { projectId: project.id, action: "RESUME", actor: admin }),
+        ).toMatchObject({ ok: false, code: "no_plan" });
+      });
+
+      it("records why an admin paused a project, and forgets it on resume", async () => {
+        const project = await newProject();
+        await submit(project.id);
+        await transitionProject(db, { projectId: project.id, action: "APPROVE", actor: admin });
+        await transitionProject(db, {
+          projectId: project.id,
+          action: "PAUSE",
+          actor: admin,
+          note: "Complaint under review.",
+        });
+        expect(
+          (await db.project.findUniqueOrThrow({ where: { id: project.id } })).pauseReason,
+        ).toBe("ADMIN");
+        await transitionProject(db, { projectId: project.id, action: "RESUME", actor: admin });
+        expect(
+          (await db.project.findUniqueOrThrow({ where: { id: project.id } })).pauseReason,
+        ).toBeNull();
+      });
     });
 
     it("will not submit for a builder who is not verified yet", async () => {

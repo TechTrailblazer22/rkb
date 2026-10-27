@@ -7,6 +7,7 @@ const PROTECTED_PREFIXES = [
   "/account",
   "/welcome",
   "/start-listing",
+  "/join",
   "/switch",
 ];
 

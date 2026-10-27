@@ -20,6 +20,7 @@ const SHELLS: Record<
     badge: "bg-teal-500/20 text-teal-50",
     links: [
       { href: "/projects", label: "Browse projects" },
+      { href: "/account/enquiries", label: "Enquiries" },
       { href: "/account/shortlist", label: "Saved" },
       { href: "/account", label: "My account" },
     ],

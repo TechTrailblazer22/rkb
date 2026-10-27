@@ -4,7 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Check } from "lucide-react";
 
-export type PortalTab = { href: string; label: string; done?: boolean };
+export type PortalTab = {
+  href: string;
+  label: string;
+  done?: boolean;
+  /** A number to show next to the label, for example the new enquiries. Hidden when 0. */
+  badge?: number;
+};
 
 // A row of tabs for an area (the builder portal, the buyer account), with a tick on the ones that
 // are complete. `root` is the area's home: its tab is active only on that exact page. Scrolls
@@ -43,6 +49,12 @@ export function PortalTabs({
                   </span>
                 )}
                 {tab.label}
+                {tab.badge ? (
+                  <span className="text-navy-900 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold">
+                    {tab.badge}
+                    <span className="sr-only"> new</span>
+                  </span>
+                ) : null}
               </Link>
             </li>
           );

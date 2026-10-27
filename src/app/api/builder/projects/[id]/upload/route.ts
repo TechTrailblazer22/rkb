@@ -1,8 +1,9 @@
 import type { ApprovalKind } from "@/generated/prisma/enums";
 import { getDb } from "@/lib/db";
+import { createLimiter } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { getApiUser } from "@/lib/auth/session";
-import { entitlementsFor, PLAN_USED_UNTIL_BILLING } from "@/lib/entitlements";
+import { entitlementsForBuilder } from "@/lib/entitlements";
 import { findOwnedProject } from "@/lib/projects/context";
 import { revalidateProjectPages } from "@/lib/projects/revalidate";
 import { approvalDocumentKey, getStorage, projectMediaKey } from "@/lib/storage";
@@ -10,6 +11,9 @@ import { MAX_UPLOAD_BYTES, detectFileType, safeFilename } from "@/lib/storage/sn
 import { StorageNotConfiguredError, type StorageDriver } from "@/lib/storage/types";
 
 export const dynamic = "force-dynamic";
+
+// Files are stored and (for photos) shown to the public, so a loop of uploads is limited per person.
+const limiter = createLimiter({ max: 60, windowMs: 60_000 });
 
 const json = (body: Record<string, unknown>, status = 200) => Response.json(body, { status });
 const APPROVAL_KINDS = new Set(["RERA", "TNCP", "MUNICIPAL", "BANK_LOAN", "OTHER"]);
@@ -27,6 +31,12 @@ export async function POST(
   if (auth.status === "unauthenticated") return json({ error: "Please log in." }, 401);
   if (auth.status !== "ok") return json({ error: "Please finish signing in first." }, 403);
   const { user } = auth;
+  if (limiter.hit(user.id)) {
+    return Response.json(
+      { error: "Too many uploads. Please wait a little and try again." },
+      { status: 429 },
+    );
+  }
 
   const { id: projectId } = await context.params;
   const owned = await findOwnedProject(user, projectId);
@@ -125,7 +135,7 @@ export async function POST(
   // ---- public media ----
   const mediaKind = kind as "PHOTO" | "LAYOUT" | "BROCHURE";
   if (mediaKind === "PHOTO") {
-    const limit = entitlementsFor(PLAN_USED_UNTIL_BILLING).maxPhotosPerProject;
+    const limit = (await entitlementsForBuilder(db, builderId)).maxPhotosPerProject;
     const count = await db.projectMedia.count({ where: { projectId, kind: "PHOTO" } });
     if (count >= limit)
       return json({ error: `You can add up to ${limit} photos per project on your plan.` }, 409);

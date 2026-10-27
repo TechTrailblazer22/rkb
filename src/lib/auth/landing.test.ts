@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Role } from "@/generated/prisma/enums";
-import { landingAfterConsent, switchLanding } from "@/lib/auth/landing";
+import { dashboardLanding, landingAfterConsent, switchLanding } from "@/lib/auth/landing";
 import { defaultMode, modesFor, roleForMode, canBuild, type Mode } from "@/lib/auth/mode";
 import type { AppUser } from "@/lib/auth/sync-user";
 
@@ -154,5 +154,33 @@ describe("landingAfterConsent", () => {
       path: "/projects?q=hosur",
       mode: null,
     });
+  });
+});
+
+describe("dashboardLanding with a page to come back to", () => {
+  it("takes a buyer back to the page they logged in from", () => {
+    expect(dashboardLanding(person("BUYER"), "buyer", "/project/green-valley?enquire=1")).toEqual({
+      path: "/project/green-valley?enquire=1",
+      mode: "buyer",
+    });
+  });
+
+  it("does so for someone with both accounts, in the buyer account", () => {
+    expect(dashboardLanding(person("BUILDER_OWNER", "builder"), "buyer", "/project/x")).toEqual({
+      path: "/project/x",
+      mode: "buyer",
+    });
+  });
+
+  it("never sends anyone to another site, or into a builder page from the buyer door", () => {
+    expect(dashboardLanding(person("BUYER"), "buyer", "https://evil.example").path).toBe(
+      "/account",
+    );
+    expect(dashboardLanding(person("BUYER"), "buyer", "//evil.example").path).toBe("/account");
+  });
+
+  it("ignores the page for the builder door and for staff", () => {
+    expect(dashboardLanding(person("BUILDER_OWNER"), "builder", "/project/x").path).toBe("/portal");
+    expect(dashboardLanding(person("ADMIN"), "buyer", "/project/x").path).toBe("/admin");
   });
 });

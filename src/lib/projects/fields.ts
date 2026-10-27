@@ -84,6 +84,7 @@ export type ProjectFieldKey =
   | "offers"
   | "amenities"
   | "videoUrl"
+  | "tourUrl"
   | "contactName"
   | "contactMobile"
   | "whatsapp"
@@ -392,6 +393,34 @@ export const PROJECT_FIELDS: Record<ProjectFieldKey, FieldDef> = {
       return id
         ? ok(youTubeWatchUrl(id))
         : fail("Enter a YouTube link, for example https://youtu.be/...");
+    },
+  },
+
+  tourUrl: {
+    step: "media",
+    label: "360° tour link",
+    material: false,
+    nullable: true,
+    parse: (raw) => {
+      const value = raw.trim();
+      let url: URL;
+      try {
+        url = new URL(value);
+      } catch {
+        return fail("Enter the full link, starting with https://");
+      }
+      // Shown as a button that opens in a new tab, never embedded; still, only a plain https link.
+      if (url.protocol !== "https:" || url.username || url.password) {
+        return fail("Enter a secure link, starting with https://");
+      }
+      if (
+        !url.hostname.includes(".") ||
+        /^[\d.]+$/.test(url.hostname) ||
+        url.hostname.includes(":")
+      ) {
+        return fail("Enter a link to a website, for example https://my.matterport.com/...");
+      }
+      return value.length > 300 ? fail("That link is too long.") : ok(url.toString());
     },
   },
 

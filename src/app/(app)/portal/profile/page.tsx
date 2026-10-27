@@ -15,7 +15,7 @@ function publicUrl(key: string | null): string | null {
 }
 
 export default async function ProfilePage() {
-  const { builder, mode } = await requireBuilderContext("/portal/profile");
+  const { builder, mode } = await requireBuilderContext("/portal/profile", { ownerOnly: true });
 
   return (
     <ProfileForm
