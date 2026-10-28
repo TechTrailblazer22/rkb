@@ -28,6 +28,10 @@ export function SubmitProjectPanel({
       >
         {pending ? "Submitting..." : "Submit for review"}
       </button>
+      <p className="text-sm text-slate-600" data-testid="publish-note">
+        Publishing is free: no plan is needed. Our team checks every project before it goes live,
+        and you get an email with the result.
+      </p>
       {blockedReason && <p className="text-sm text-amber-700">{blockedReason}</p>}
       {!blockedReason && !canSubmit && (
         <p className="text-sm text-slate-600">

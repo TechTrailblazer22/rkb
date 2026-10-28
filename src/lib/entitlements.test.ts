@@ -72,20 +72,18 @@ describe("the marketing table and the enforced limits agree", () => {
 });
 
 describe("entitlementsForPlan", () => {
-  it("gives a plan its limits and lets it publish", () => {
+  it("gives a plan its limits", () => {
     expect(entitlementsForPlan("GROWTH")).toMatchObject({
       plan: "GROWTH",
       active: true,
-      canPublish: true,
       maxProjects: 6,
     });
   });
 
-  it("lets a company with no plan prepare drafts, at the smallest size, but not go live", () => {
+  it("puts a company with no plan on the free tier: the smallest size, and publishing allowed", () => {
     expect(entitlementsForPlan(null)).toMatchObject({
       plan: null,
       active: false,
-      canPublish: false,
       maxProjects: 2,
       video: false,
       leads: "basic",

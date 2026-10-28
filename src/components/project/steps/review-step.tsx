@@ -13,8 +13,6 @@ export function ReviewStep({ ctx }: { ctx: ProjectContext }) {
   const { project, builder, projectChecklist: checklist } = ctx;
   const id = project.id;
   const verified = builder.status === "VERIFIED";
-  const hasPlan = ctx.entitlements.canPublish;
-  const isOwner = ctx.memberRole === "OWNER";
   const editable = project.status === "DRAFT" || project.status === "CHANGES_REQUESTED";
   const required = checklist.items.filter((i) => i.required);
   const recommended = checklist.items.filter((i) => !i.required);
@@ -193,33 +191,14 @@ export function ReviewStep({ ctx }: { ctx: ProjectContext }) {
       {editable && (
         <SubmitProjectPanel
           projectId={id}
-          canSubmit={checklist.canSubmit && verified && hasPlan}
+          canSubmit={checklist.canSubmit && verified}
           blockedReason={
             !verified
               ? "Your company must be verified before a project can be submitted. Finish your company application first."
-              : !hasPlan
-                ? "A project needs an active plan to go live. You can keep preparing it as a draft."
-                : undefined
+              : undefined
           }
         />
       )}
-      {editable && verified && !hasPlan && isOwner && (
-        <Link
-          href="/portal/billing"
-          className="inline-block text-sm font-semibold text-teal-700 underline"
-        >
-          Plan and billing
-        </Link>
-      )}
-      {editable && verified && !hasPlan && !isOwner && (
-        <p className="text-sm text-slate-600">Ask the owner of the company to start a plan.</p>
-      )}
-      {editable && !verified && (
-        <Link href="/portal" className="inline-block text-sm font-semibold text-teal-700 underline">
-          Go to my company application
-        </Link>
-      )}
-
       {project.status !== "ARCHIVED" && project.status !== "SUBMITTED" && (
         <form action={archiveProject} className="border-t border-slate-200 pt-6">
           <input type="hidden" name="projectId" value={id} />

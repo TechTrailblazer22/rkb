@@ -415,8 +415,8 @@ export function planEndingMail(input: {
   const lines = [
     `The ${plan} plan for ${company(input.companyName)} ends ${when} (${istDate(input.endsOn)}).`,
     input.willNotRenew
-      ? "You chose not to renew, so your projects go offline when it ends. You can change your mind any time before then."
-      : "Renew before then so your projects stay live. If the plan ends, your projects go offline until you renew; nothing is deleted.",
+      ? "You chose not to renew, so the extras go away when it ends. Your projects stay live. You can change your mind any time before then."
+      : "Renew before then to keep the extras (more projects, video, the full lead dashboard, analytics, featured days). If the plan ends your projects stay live and nothing is deleted.",
   ];
   return {
     subject: `Your ${plan} plan ends ${when}`,
@@ -454,21 +454,15 @@ export function paymentReceiptMail(input: {
   };
 }
 
-export function planLapsedMail(input: {
-  companyName: string | null;
-  plan: string;
-  projectsPaused: number;
-}): MailContent {
+export function planLapsedMail(input: { companyName: string | null; plan: string }): MailContent {
   const link = url("/portal/billing");
   const plan = input.plan.charAt(0) + input.plan.slice(1).toLowerCase();
   const lines = [
     `The ${plan} plan for ${company(input.companyName)} has ended.`,
-    input.projectsPaused > 0
-      ? `${input.projectsPaused} ${input.projectsPaused === 1 ? "project is" : "projects are"} offline now. Nothing was deleted, and they go live again as soon as you renew.`
-      : "Nothing was deleted. Renew to publish projects again.",
+    "Your live projects stay live, and nothing was deleted. What the plan added (extra projects, video, the full lead dashboard, analytics, featured days) is switched off until you renew.",
   ];
   return {
-    subject: "Your plan has ended and your projects are offline",
+    subject: "Your plan has ended",
     text: plain([...lines, link]),
     html: layout({
       heading: "Your plan has ended",

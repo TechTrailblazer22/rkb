@@ -12,16 +12,16 @@ const DAY = 86_400_000;
 const REMIND_AT = [7, 3, 1];
 
 /**
- * Ends the plans whose period and grace are over, and takes that company's live projects offline
- * (paused, remembering why, so they come back by themselves when the plan does). Data is kept.
- * Safe to run twice: a subscription is claimed by changing its status, and a project is paused
- * only if it is still live.
+ * Ends the plans whose period and grace are over. The company drops to the free tier: its live
+ * projects stay live (publishing never needs a plan), and what the plan added (more projects, video,
+ * the full lead dashboard, analytics, featured days, priority) switches off. Nothing is deleted.
+ * Safe to run twice: a subscription is claimed by changing its status.
  */
 export async function expireSubscriptions(
   db: PrismaClient,
   now: Date = new Date(),
   send: Send = sendMail,
-): Promise<{ expired: number; pausedProjectIds: string[] }> {
+): Promise<{ expired: number; expiredBuilderIds: string[] }> {
   const due = await db.subscription.findMany({
     where: {
       status: "ACTIVE",
@@ -32,7 +32,7 @@ export async function expireSubscriptions(
   });
 
   let expired = 0;
-  const pausedProjectIds: string[] = [];
+  const expiredBuilderIds: string[] = [];
   for (const subscription of due) {
     const won = await db.subscription.updateMany({
       where: { id: subscription.id, status: "ACTIVE" },
@@ -40,36 +40,14 @@ export async function expireSubscriptions(
     });
     if (won.count !== 1) continue;
     expired++;
-
-    const live = await db.project.findMany({
-      where: { builderId: subscription.builderId, status: "LIVE" },
-      select: { id: true },
-    });
-    const note = `The ${subscription.plan.toLowerCase()} plan ended on ${subscription.currentPeriodEnd.toISOString().slice(0, 10)}. Your projects are offline and will go live again as soon as you renew.`;
-    const ids: string[] = [];
-    for (const { id } of live) {
-      const paused = await db.project.updateMany({
-        where: { id, status: "LIVE" },
-        data: { status: "PAUSED", pauseReason: "PLAN_LAPSED", reviewNote: note, reviewedAt: now },
-      });
-      if (paused.count !== 1) continue;
-      ids.push(id);
-      await recordAudit(db, {
-        actorId: null,
-        action: "project.paused_plan_lapsed",
-        entity: "Project",
-        entityId: id,
-        meta: { subscriptionId: subscription.id },
-      });
-    }
-    pausedProjectIds.push(...ids);
+    expiredBuilderIds.push(subscription.builderId);
 
     await recordAudit(db, {
       actorId: null,
       action: "subscription.expired",
       entity: "Builder",
       entityId: subscription.builderId,
-      meta: { plan: subscription.plan, paused: ids.length },
+      meta: { plan: subscription.plan },
     });
     const builder = await db.builder.findUnique({
       where: { id: subscription.builderId },
@@ -82,12 +60,11 @@ export async function expireSubscriptions(
         ...planLapsedMail({
           companyName: builder?.companyName ?? null,
           plan: subscription.plan,
-          projectsPaused: ids.length,
         }),
       });
     }
   }
-  return { expired, pausedProjectIds };
+  return { expired, expiredBuilderIds };
 }
 
 /**
