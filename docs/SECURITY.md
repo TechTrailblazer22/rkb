@@ -66,6 +66,16 @@ accounts are handled by us on request. Your sign-in identity at Auth0 is not del
 is done in Auth0. Leads, bookings and invoices may need to be kept for a period the law sets: **take
 advice on retention periods and write them into the Privacy Notice**.
 
+## Who uses the site (admin Usage page)
+
+`/admin/usage` shows staff how many different logged-in people used the site through a buyer account
+and through a builder account (today, 7 days, 30 days, a 30-day chart, and how many used both).
+It is fed by `UserActivity`: one row per person, day and account, written the first time that person
+is seen that day. No page, address or device is stored, only who and which account. It counts
+logged-in people only; visitors who are not logged in are not counted (the per-project view counts in
+a builder's analytics cover them). The rows are removed when an account is deleted. Say so in the
+Privacy Notice.
+
 ## Dependencies
 
 `npm audit` reported 0 vulnerabilities at the time of the final audit. Re-run it before each deploy;

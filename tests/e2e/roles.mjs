@@ -737,6 +737,74 @@ check(
   String(anonPost.status),
 );
 
+section("9. The admin sees how many people use the site through each account");
+await new Promise((r) => setTimeout(r, 1500)); // the activity is written without making a page wait
+await go(ap, "/admin/usage");
+check(
+  "the admin console has a Usage tab",
+  (await ap.getByRole("link", { name: "Usage" }).count()) >= 1,
+);
+const cell = async (period, kind) =>
+  Number(
+    (await ap.locator(`[data-period="${period}"] [data-cell="${kind}"]`).innerText()).replace(
+      /,/g,
+      "",
+    ),
+  );
+const dbToday = async (mode) =>
+  Number(
+    (
+      await sql(
+        `SELECT COUNT(DISTINCT "userId") AS n FROM "UserActivity" WHERE mode = $1 AND day = (now() AT TIME ZONE 'Asia/Kolkata')::date`,
+        [mode],
+      )
+    )[0].n,
+  );
+const buyersToday = await cell("today", "buyer");
+const buildersToday = await cell("today", "builder");
+check("people were counted through buyer accounts", buyersToday >= 1, String(buyersToday));
+check("and through builder accounts", buildersToday >= 1, String(buildersToday));
+check(
+  "the page agrees with the database, for both",
+  buyersToday === (await dbToday("buyer")) && buildersToday === (await dbToday("builder")),
+  `${buyersToday}/${await dbToday("buyer")} ${buildersToday}/${await dbToday("builder")}`,
+);
+check(
+  "thirty days is never smaller than today",
+  (await cell("last30", "buyer")) >= buyersToday &&
+    (await cell("last30", "builder")) >= buildersToday,
+);
+check(
+  "a person who used both accounts is reported",
+  (await ap.getByTestId("used-both").innerText()).includes("used both"),
+);
+check(
+  "the registered counts add up",
+  Number(
+    (await ap.getByTestId("registered").locator("p.text-2xl").first().innerText()).replace(
+      /,/g,
+      "",
+    ),
+  ) === Number((await sql(`SELECT COUNT(*) AS n FROM "User" WHERE role <> 'ADMIN'`))[0].n),
+);
+check(
+  "the chart is labelled and has a table version",
+  (await ap.getByTestId("usage-chart").locator("svg").getAttribute("aria-label")).includes(
+    "buyer accounts",
+  ) && (await ap.getByText("Show the numbers as a table").count()) === 1,
+);
+check(
+  "one row per person per day per account: no duplicates",
+  Number(
+    (
+      await sql(
+        `SELECT COUNT(*) AS n FROM (SELECT 1 FROM "UserActivity" GROUP BY "userId", day, mode HAVING COUNT(*) > 1) d`,
+      )
+    )[0].n,
+  ) === 0,
+);
+check("a buyer cannot open the page", (await go(sp, "/admin/usage")) !== "/admin/usage");
+
 await browser.close();
 await db.end();
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);

@@ -5,6 +5,7 @@ const LINKS = [
   { key: "builders", href: "/admin/builders", label: "Builders" },
   { key: "projects", href: "/admin/projects", label: "Projects" },
   { key: "reviews", href: "/admin/reviews", label: "Reviews" },
+  { key: "usage", href: "/admin/usage", label: "Usage" },
   { key: "billing", href: "/admin/billing", label: "Billing" },
 ] as const;
 

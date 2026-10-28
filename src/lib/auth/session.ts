@@ -17,6 +17,7 @@ import {
 } from "@/lib/auth/mode";
 import { syncUser, type AppUser, type SyncResult } from "@/lib/auth/sync-user";
 import { TERMS_VERSION } from "@/lib/legal";
+import { recordActivity } from "@/lib/usage/activity";
 
 /** Auth0 session, or null when logged out or Auth0 is not configured. No database access. */
 export async function getSessionUser() {
@@ -79,7 +80,11 @@ export async function getSessionAccount(): Promise<SessionAccount | null> {
       sessionUser.name,
     );
     if (result.status !== "ok") return null;
-    const { role, mode, modes, canBuild } = applyMode(result.user, await modeFromCookie());
+    const account = applyMode(result.user, await modeFromCookie());
+    // This runs when a logged-in person opens any page (the header asks), so it is where "who used
+    // the site, through which account" is noted. It never waits and never fails the page.
+    void recordActivity(getDb(), { userId: account.id, mode: account.mode });
+    const { role, mode, modes, canBuild } = account;
     return { role, mode, modes, canBuild };
   } catch (error) {
     console.error("Could not read the account for the current session", error);
@@ -129,6 +134,7 @@ export async function requireUser(options: RequireUserOptions): Promise<AppUser>
     if (other) redirect(`/switch?to=${other}&next=${encodeURIComponent(options.returnTo)}`);
     redirect(homePathForMode(user.mode));
   }
+  void recordActivity(getDb(), { userId: user.id, mode: user.mode });
   return user;
 }
 
