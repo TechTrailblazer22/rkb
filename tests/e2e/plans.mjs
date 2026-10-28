@@ -202,8 +202,8 @@ section("1. A verified company with no plan");
 const o1 = await open(people.owner1);
 check("the portal opens", (await go(o1.page, "/portal")) === "/portal");
 check(
-  "the overview says there is no plan yet",
-  (await o1.page.getByTestId("plan-summary").innerText()).includes("not on a plan yet"),
+  "the overview says the company is on the free plan",
+  (await o1.page.getByTestId("plan-summary").innerText()).includes("Free plan"),
 );
 const tabs1 = await o1.page.getByRole("navigation", { name: "Application steps" }).innerText();
 check(
@@ -214,7 +214,7 @@ check(
 await go(o1.page, "/portal/billing");
 check(
   "the billing page says so too",
-  (await o1.page.getByTestId("plan-card").innerText()).includes("not on a plan yet"),
+  (await o1.page.getByTestId("plan-card").innerText()).includes("Free plan"),
 );
 check(
   "with no payment gateway configured, buying is switched off and says so",
@@ -232,8 +232,8 @@ check(
 );
 await go(o1.page, `/portal/projects/${draft1}/review`);
 const submit = o1.page.getByRole("button", { name: "Submit for review" });
-check("a draft cannot be submitted without a plan", await submit.isDisabled());
-check("and the page says why", (await text(o1.page)).includes("needs an active plan"));
+check("a draft CAN be submitted without a plan", await submit.isEnabled());
+check("and the page says no plan is needed", (await text(o1.page)).includes("no plan is needed"));
 check(
   "with a way to get one",
   await o1.page.getByRole("link", { name: "Plan and billing" }).first().isVisible(),
@@ -336,11 +336,7 @@ await sql(
   [c1.builderId],
 );
 let ran = await (await cron("billing")).json();
-check(
-  "two days late: still in force, nothing paused",
-  ran.expired === 0 && ran.paused === 0,
-  JSON.stringify(ran),
-);
+check("two days late: still in force, nothing ended", ran.expired === 0, JSON.stringify(ran));
 await go(o1.page, "/portal/billing");
 check(
   "the owner is told the plan is overdue, with the grace days",
@@ -354,56 +350,66 @@ await sql(
 );
 ran = await (await cron("billing")).json();
 check(
-  "five days late: the plan is ended and the live project is paused",
-  ran.expired === 1 && ran.paused === 1,
+  "five days late: the plan is ended",
+  ran.expired === 1 && ran.paused === undefined,
   JSON.stringify(ran),
 );
 const lapsed = (await sql(`SELECT status, "pauseReason" FROM "Project" WHERE id = $1`, [live1]))[0];
 check(
-  "the project says why it is paused",
-  lapsed.status === "PAUSED" && lapsed.pauseReason === "PLAN_LAPSED",
+  "the live project stays live: publishing never needed the plan",
+  lapsed.status === "LIVE" && lapsed.pauseReason === null,
   JSON.stringify(lapsed),
 );
 check(
-  "the owner is emailed",
-  (await mailTo(people.owner1.email, "Your plan has ended")).length === 1,
+  "the owner is emailed, and told the projects stay live",
+  (await mailTo(people.owner1.email, "Your plan has ended")).length === 1 &&
+    (await mailTo(people.owner1.email, "Your plan has ended"))[0].text.includes("stay live"),
 );
-const gone = await pub.page.goto(baseUrl + "/project/plan-co-layout");
-check("the public page is gone", gone.status() === 404, `status ${gone.status()}`);
+const stillThere = await pub.page.goto(baseUrl + "/project/plan-co-layout");
+check(
+  "the public page is still there",
+  stillThere.status() === 200,
+  `status ${stillThere.status()}`,
+);
 check(
   "running the job again changes nothing",
   (await (await cron("billing")).json()).expired === 0,
 );
 await go(o1.page, "/portal");
 check(
-  "the portal says the plan has ended",
-  (await o1.page.getByTestId("plan-summary").innerText()).includes("plan has ended"),
+  "the portal says the company is on the free plan",
+  (await o1.page.getByTestId("plan-summary").innerText()).includes("Free plan"),
+);
+await go(o1.page, "/portal/projects");
+check(
+  "the limits drop to the free ones, but nothing is hidden",
+  (await o1.page.getByTestId("project-allowance").innerText()).includes("of 2 projects used"),
 );
 await go(o1.page, `/portal/projects/${draft1}/review`);
 check(
-  "a draft cannot be submitted again",
-  await o1.page.getByRole("button", { name: "Submit for review" }).isDisabled(),
+  "a draft can still be submitted",
+  await o1.page.getByRole("button", { name: "Submit for review" }).isEnabled(),
 );
 
-// staff renew: the project returns by itself
+// staff set a new plan: the extras come back, and nothing else changes
 await go(adm.page, `/admin/builders/${c1.builderId}`);
 await adm.page.locator("#plan-code").selectOption("GROWTH");
 await adm.page.locator("#plan-kind").selectOption("comp");
 await adm.page.locator("#plan-note").fill("Goodwill month");
 await act(adm.page, () => adm.page.getByRole("button", { name: "Set plan" }).click());
 check(
-  "the flash says projects went live again",
-  (await text(adm.page)).includes("went live again"),
+  "the plan is set",
+  (await text(adm.page)).includes("Plan set"),
   (await text(adm.page)).slice(0, 200),
 );
 const back = (await sql(`SELECT status, "pauseReason" FROM "Project" WHERE id = $1`, [live1]))[0];
 check(
-  "the project is live again, with no pause reason",
+  "the project is live, as it always was",
   back.status === "LIVE" && back.pauseReason === null,
   JSON.stringify(back),
 );
 const again = await pub.page.goto(baseUrl + "/project/plan-co-layout");
-check("and public again", again.status() === 200, `status ${again.status()}`);
+check("and public", again.status() === 200, `status ${again.status()}`);
 check(
   "a complimentary plan makes no invoice",
   (await sql(`SELECT 1 FROM "Invoice" WHERE "builderId" = $1`, [c1.builderId])).length === 1,

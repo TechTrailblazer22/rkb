@@ -629,7 +629,10 @@ check(
     "REFUNDED",
 );
 await go(a.page, `/portal/billing/invoices/${inv1.id}`);
-check("and the printed invoice says Refunded", (await text(a.page)).toLowerCase().includes("refunded"));
+check(
+  "and the printed invoice says Refunded",
+  (await text(a.page)).toLowerCase().includes("refunded"),
+);
 check(
   "a refund needs a reason (the server refuses an empty one)",
   await (async () => {

@@ -29,25 +29,33 @@ never the plan's name. `src/lib/plans.ts` holds the marketing copy, and a test
 - **Basic leads:** see leads, change status, add notes. **Full** adds follow-up dates and their email
   reminders, site-visit tracking and CSV export. Enforced in the pages, the server actions, the
   export route and the reminder job.
-- **No plan:** a company can prepare drafts (at the Starter size) but cannot submit, approve or
-  resume a project, so nothing goes live without a plan. The service refuses with `no_plan`.
+- **No plan (the free plan):** publishing never needs a plan. A company with none (never bought one,
+  or its plan ended) can submit projects, staff can approve them, and they go live like anyone's.
+  It gets the Starter-sized limits (2 projects, 15 photos, 1 seat, basic leads) and none of the
+  extras. A plan adds room and features; it is never a condition for going live. Staff still review
+  every project and the company must be verified. (Product note: because free equals Starter's size,
+  Starter currently adds nothing over free. Decide what Starter should offer, or make the free tier
+  smaller in `NO_PLAN` in `lib/entitlements.ts`.)
 - **Grace:** a plan stays in force for `GRACE_DAYS` (3) after its paid period, so a late payment is
   not a cliff.
 
 ## The plan's life
 
 ```
-no plan --pay--> ACTIVE --period ends--> (3 grace days) --> EXPIRED --pay--> ACTIVE
+free --pay--> ACTIVE --period ends--> (3 grace days) --> EXPIRED (free again) --pay--> ACTIVE
                    |  ^                                         |
                    |  +--- renew / upgrade ---------------------+
                    +--- downgrade or cancel: waits for the end of the period
 ```
 
-- **Expiry** (`/api/cron/billing`, daily): ends the plan after the grace days, pauses the company's
-  live projects with `pauseReason = PLAN_LAPSED`, emails the owner. Nothing is deleted.
-- **Coming back:** any new plan (payment or staff) brings back exactly the projects paused for
-  `PLAN_LAPSED`. A project paused by staff (`ADMIN`) or by an expired approval (`APPROVAL_EXPIRED`)
-  stays paused. Approval re-checks are in `lib/jobs/approval-expiry.ts`.
+- **Expiry** (`/api/cron/billing`, daily): ends the plan after the grace days and emails the owner.
+  The company drops to the free plan: **its live projects stay live** and nothing is deleted or
+  hidden; the extras switch off and it cannot add projects beyond the free limit (a company already
+  over it keeps what it has).
+- **Older data:** an earlier version paused projects when a plan ended. Migration `0012` put those
+  back live, and `resumeLapsedProjects` still does so for any left. A project paused by staff
+  (`ADMIN`) or by an expired approval (`APPROVAL_EXPIRED`) stays paused. Approval re-checks are in
+  `lib/jobs/approval-expiry.ts`.
 - **Reminders:** 7, 3 and 1 days before the end, once each (claimed before sending, so a second run
   sends nothing). A renewal starts them over.
 - **Not auto-debited.** Renewals are paid by the company when it chooses; we remind it. Razorpay

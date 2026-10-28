@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/auth/session";
 import { addInterval, planSubtotalPaise } from "@/lib/billing/money";
 import { assignSubscription } from "@/lib/billing/subscriptions";
 import { getDb } from "@/lib/db";
-import { revalidateProjectPages } from "@/lib/projects/revalidate";
+import { revalidateBuilderPages } from "@/lib/projects/revalidate";
 
 const schema = z.object({
   builderId: z.string().min(1),
@@ -80,7 +80,8 @@ export async function assignPlan(formData: FormData) {
     actorId: admin.id,
   });
 
-  for (const projectId of result.resumedProjectIds) await revalidateProjectPages(db, projectId);
+  // A plan can change what the public pages show (priority listing, the home spotlight).
+  await revalidateBuilderPages(db, input.builderId);
   revalidatePath(`/admin/builders/${input.builderId}`);
   back(input.builderId, {
     saved: result.invoice

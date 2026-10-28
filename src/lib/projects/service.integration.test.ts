@@ -227,48 +227,41 @@ describe.skipIf(!url)("projects and plots (real Postgres)", () => {
       ).toMatchObject({ ok: false, code: "incomplete" });
     });
 
-    describe("the plan", () => {
+    describe("the plan is never needed to go live", () => {
       const submit = (projectId: string) =>
         transitionProject(db, { projectId, action: "SUBMIT", actor: builderActor(), builderId });
 
-      it("lets a company with no plan prepare a draft but not submit it", async () => {
+      it("lets a company with no plan submit, and staff approve and resume", async () => {
         const project = await newProject();
         await db.subscription.delete({ where: { builderId } });
-        expect(await submit(project.id)).toMatchObject({ ok: false, code: "no_plan" });
-        expect((await db.project.findUniqueOrThrow({ where: { id: project.id } })).status).toBe(
-          "DRAFT",
-        );
-      });
-
-      it("treats an ended plan as no plan once the grace days are over", async () => {
-        const project = await newProject();
-        await db.subscription.update({
-          where: { builderId },
-          data: { currentPeriodEnd: new Date(Date.now() - 4 * 86_400_000) },
-        });
-        expect(await submit(project.id)).toMatchObject({ ok: false, code: "no_plan" });
-      });
-
-      it("still accepts a plan that ended a day ago, inside the grace days", async () => {
-        const project = await newProject();
-        await db.subscription.update({
-          where: { builderId },
-          data: { currentPeriodEnd: new Date(Date.now() - 86_400_000) },
-        });
         expect((await submit(project.id)).ok).toBe(true);
+        expect(
+          (await transitionProject(db, { projectId: project.id, action: "APPROVE", actor: admin }))
+            .ok,
+        ).toBe(true);
+        const live = await db.project.findUniqueOrThrow({ where: { id: project.id } });
+        expect(live).toMatchObject({ status: "LIVE" });
+        expect(live.slug).toBeTruthy();
+        await transitionProject(db, {
+          projectId: project.id,
+          action: "PAUSE",
+          actor: admin,
+          note: "Complaint under review.",
+        });
+        expect(
+          (await transitionProject(db, { projectId: project.id, action: "RESUME", actor: admin }))
+            .ok,
+        ).toBe(true);
       });
 
-      it("will not approve or resume a project when the plan has gone", async () => {
+      it("treats an ended plan the same way: nothing about publishing changes", async () => {
         const project = await newProject();
-        expect((await submit(project.id)).ok).toBe(true);
         await db.subscription.update({ where: { builderId }, data: { status: "EXPIRED" } });
+        expect((await submit(project.id)).ok).toBe(true);
         expect(
-          await transitionProject(db, { projectId: project.id, action: "APPROVE", actor: admin }),
-        ).toMatchObject({ ok: false, code: "no_plan" });
-        await db.project.update({ where: { id: project.id }, data: { status: "PAUSED" } });
-        expect(
-          await transitionProject(db, { projectId: project.id, action: "RESUME", actor: admin }),
-        ).toMatchObject({ ok: false, code: "no_plan" });
+          (await transitionProject(db, { projectId: project.id, action: "APPROVE", actor: admin }))
+            .ok,
+        ).toBe(true);
       });
 
       it("records why an admin paused a project, and forgets it on resume", async () => {

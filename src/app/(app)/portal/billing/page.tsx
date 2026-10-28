@@ -157,7 +157,7 @@ export default async function BillingPage({ searchParams }: PageProps<"/portal/b
       >
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-lg font-bold">
-            {e.plan ? `${PLAN_LABELS[e.plan]} plan` : "You are not on a plan yet"}
+            {e.plan ? `${PLAN_LABELS[e.plan]} plan` : "Free plan"}
           </h2>
           {subscription && e.active && !late && <Badge tone="teal">Active</Badge>}
           {late && <Badge tone="amber">Payment overdue</Badge>}
@@ -168,15 +168,16 @@ export default async function BillingPage({ searchParams }: PageProps<"/portal/b
           <p className="mt-2 text-sm text-slate-700" data-testid="plan-dates">
             {e.active
               ? late
-                ? `Your plan ended on ${formatDate(subscription.currentPeriodEnd)}. It stays in force for ${GRACE_DAYS} more days so you can renew without a break. After that, live projects go offline.`
+                ? `Your plan ended on ${formatDate(subscription.currentPeriodEnd)}. It stays in force for ${GRACE_DAYS} more days so you can renew without a break. After that you are on the free plan: your live projects stay live, and the extras switch off.`
                 : subscription.source === "COMP"
                   ? `A complimentary plan, until ${formatDate(subscription.currentPeriodEnd)}.`
                   : `Paid until ${formatDate(subscription.currentPeriodEnd)}.`
-              : `Your plan ended on ${formatDate(subscription.currentPeriodEnd)}. Your projects are offline and your data is safe. They go live again as soon as a plan is back.`}
+              : `Your plan ended on ${formatDate(subscription.currentPeriodEnd)}. You are on the free plan: your projects stay live and your data is safe. A plan brings the extras back.`}
           </p>
         ) : (
           <p className="mt-2 text-sm text-slate-700">
-            You can prepare projects now, as drafts. Going live needs a plan. Choose one below.
+            You are on the free plan: you can publish projects without paying. A plan gives you more
+            projects, video, the full lead dashboard, analytics and featured days.
           </p>
         )}
 

@@ -224,7 +224,9 @@ export default async function AdminProjectPage({
                     </span>
                   </p>
                 ) : (
-                  <p className="mt-2 text-sm text-slate-500">No certificate attached.</p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    No certificate attached. You can still verify it by its number.
+                  </p>
                 )}
                 {approval.reviewNote && (
                   <p className="mt-2 text-sm text-red-700">

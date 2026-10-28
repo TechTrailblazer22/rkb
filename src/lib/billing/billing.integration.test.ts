@@ -70,11 +70,13 @@ describe.skipIf(!url)("plans and invoices (real Postgres)", () => {
 
   describe("assignSubscription", () => {
     it("puts a company on a plan, and its entitlements follow", async () => {
-      expect((await entitlementsForBuilder(db, builderId, NOW)).canPublish).toBe(false);
+      expect(await entitlementsForBuilder(db, builderId, NOW)).toMatchObject({
+        plan: null,
+        maxProjects: 2,
+      });
       await assign();
       expect(await entitlementsForBuilder(db, builderId, NOW)).toMatchObject({
         plan: "GROWTH",
-        canPublish: true,
         maxProjects: 6,
       });
     });
@@ -215,37 +217,35 @@ describe.skipIf(!url)("plans and invoices (real Postgres)", () => {
       );
     });
 
-    it("ends the plan after the grace days, pauses live projects with a reason, and emails once", async () => {
+    it("ends the plan after the grace days, keeps live projects live, and emails once", async () => {
       await assign({
         periodEnd: new Date(NOW.getTime() - 4 * DAY),
         periodStart: new Date(NOW.getTime() - 34 * DAY),
       });
       const p1 = await live("p1");
       const p2 = await live("p2");
-      const draft = await db.project.create({
-        data: { builderId, name: "d", slug: "d", type: "PLOTTED", status: "DRAFT" },
-      });
 
       const first = await expireSubscriptions(db, NOW, send);
       expect(first.expired).toBe(1);
-      expect(first.pausedProjectIds.sort()).toEqual([p1.id, p2.id].sort());
-      const paused = await db.project.findUniqueOrThrow({ where: { id: p1.id } });
-      expect(paused).toMatchObject({ status: "PAUSED", pauseReason: "PLAN_LAPSED" });
-      expect((await db.project.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe(
-        "DRAFT",
-      );
+      for (const project of [p1, p2]) {
+        expect(await db.project.findUniqueOrThrow({ where: { id: project.id } })).toMatchObject({
+          status: "LIVE",
+          pauseReason: null,
+        });
+      }
       expect((await db.subscription.findUniqueOrThrow({ where: { builderId } })).status).toBe(
         "EXPIRED",
       );
       expect(sent).toHaveLength(1);
       expect(sent[0].to).toContain("owner@test.example");
+      expect(sent[0].text).toContain("stay live");
 
       const again = await expireSubscriptions(db, NOW, send);
       expect(again.expired).toBe(0);
       expect(sent).toHaveLength(1);
     });
 
-    it("running twice at once pauses each project once", async () => {
+    it("running twice at once ends the plan once", async () => {
       await assign({
         periodEnd: new Date(NOW.getTime() - 4 * DAY),
         periodStart: new Date(NOW.getTime() - 34 * DAY),
@@ -256,23 +256,28 @@ describe.skipIf(!url)("plans and invoices (real Postgres)", () => {
         expireSubscriptions(db, NOW, send),
       ]);
       expect(a.expired + b.expired).toBe(1);
-      expect(a.pausedProjectIds.length + b.pausedProjectIds.length).toBe(1);
       expect(sent).toHaveLength(1);
     });
 
-    it("goes live again by itself when the company renews", async () => {
+    it("drops to the free limits when the plan ends, and gets the extras back on renewal", async () => {
       await assign({
         periodEnd: new Date(NOW.getTime() - 4 * DAY),
         periodStart: new Date(NOW.getTime() - 34 * DAY),
       });
-      const project = await live("p1");
+      await live("p1");
       await expireSubscriptions(db, NOW, send);
-      expect((await entitlementsForBuilder(db, builderId, NOW)).canPublish).toBe(false);
+      expect(await entitlementsForBuilder(db, builderId, NOW)).toMatchObject({
+        plan: null,
+        active: false,
+        maxProjects: 2,
+        leads: "basic",
+      });
       await assign();
-      expect((await db.project.findUniqueOrThrow({ where: { id: project.id } })).status).toBe(
-        "LIVE",
-      );
-      expect((await entitlementsForBuilder(db, builderId, NOW)).canPublish).toBe(true);
+      expect(await entitlementsForBuilder(db, builderId, NOW)).toMatchObject({
+        plan: "GROWTH",
+        maxProjects: 6,
+        leads: "full",
+      });
     });
   });
 

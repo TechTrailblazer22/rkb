@@ -180,6 +180,7 @@ suites on one build contaminate each other):
 | `billing.mjs` | checkout, invoices, upgrades, webhook, refunds | `BILLING_DRIVER=test`, `ALLOW_TEST_BILLING=yes`, `BILLING_TEST_SECRET`, supplier variables |
 | `phase9.mjs` | analytics, reviews, layout map, progress | `CRON_SECRET`, mail folder, local storage |
 | `booking.mjs` | token booking, expiry, late payment, refunds | `BOOKING_ENABLED=yes` and the billing test variables |
+| `visibility.mjs` | a builder with no plan publishes, staff approve, buyers find it on every listing page; what must stay hidden; My projects | none beyond the base |
 | `hardening.mjs` | headers, policy violations on every page, 404, data export and erasure, attacks | local storage |
 
 The runner scripts used for the final audit were thin wrappers that create a Postgres container,

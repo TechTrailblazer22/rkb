@@ -62,7 +62,7 @@ export default async function PortalPage() {
       {status === "VERIFIED" && (
         <section
           data-testid="plan-summary"
-          className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 text-sm sm:p-5 ${entitlements.active ? "border-slate-200 bg-white" : "border-amber-500/50 bg-amber-50"}`}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm sm:p-5"
         >
           <p>
             {entitlements.plan && subscription ? (
@@ -72,13 +72,13 @@ export default async function PortalPage() {
               </>
             ) : subscription ? (
               <>
-                <strong>Your plan has ended.</strong> Your projects are offline until a plan is
-                back.
+                <strong>Free plan.</strong> Your earlier plan has ended; your projects stay live. A
+                plan brings back the extras (more projects, video, analytics).
               </>
             ) : (
               <>
-                <strong>You are not on a plan yet.</strong> Projects can be prepared, but they go
-                live once a plan starts.
+                <strong>Free plan.</strong> You can publish projects without paying. A plan adds
+                room and extras.
               </>
             )}
           </p>

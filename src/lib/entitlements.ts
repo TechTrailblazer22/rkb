@@ -9,10 +9,8 @@ import type { PlanCode } from "@/generated/prisma/enums";
 export type Entitlements = {
   /** The plan the company is on right now, or null when it has none. */
   plan: PlanCode | null;
-  /** Whether the plan is in force (paid up, or in its short grace period). */
+  /** Whether a paid plan is in force (paid up, or in its short grace period). */
   active: boolean;
-  /** Live listings need an active plan; drafts do not. */
-  canPublish: boolean;
   /** null means unlimited. */
   maxProjects: number | null;
   maxPhotosPerProject: number;
@@ -29,7 +27,7 @@ export type Entitlements = {
   homepageSpotlight: boolean;
 };
 
-export type Limits = Omit<Entitlements, "plan" | "active" | "canPublish">;
+export type Limits = Omit<Entitlements, "plan" | "active">;
 
 export const LIMITS: Record<PlanCode, Limits> = {
   STARTER: {
@@ -73,7 +71,11 @@ export const LIMITS: Record<PlanCode, Limits> = {
   },
 };
 
-/** A company with no plan can prepare drafts, at the smallest plan's size, but cannot go live. */
+/**
+ * A company with no plan (never bought one, or its plan ended) is on the free tier: it can publish
+ * projects like anyone else, at the smallest size. A plan adds room and features; it is never needed
+ * to go live.
+ */
 const NO_PLAN: Limits = { ...LIMITS.STARTER };
 
 /** After a plan's paid period ends, it stays in force this long, so a late payment is not a cliff. */
@@ -81,8 +83,8 @@ export const GRACE_DAYS = 3;
 const DAY = 86_400_000;
 
 export function entitlementsForPlan(plan: PlanCode | null): Entitlements {
-  if (!plan) return { plan: null, active: false, canPublish: false, ...NO_PLAN };
-  return { plan, active: true, canPublish: true, ...LIMITS[plan] };
+  if (!plan) return { plan: null, active: false, ...NO_PLAN };
+  return { plan, active: true, ...LIMITS[plan] };
 }
 
 /** Whether a subscription is in force at a moment: active, and not past its period plus grace. */
