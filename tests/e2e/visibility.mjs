@@ -272,45 +272,6 @@ check(
   JSON.stringify(live),
 );
 
-section("2b. An approval can be verified without an attached certificate");
-const withApproval = await seed(cA, "x", "Approval Without File", "SUBMITTED");
-await sql(
-  `INSERT INTO "ProjectApproval"(id,"projectId",kind,number,"updatedAt") VALUES($1,$2,'RERA','TN/RERA/123/2026',now()),($3,$2,'TNCP',NULL,now())`,
-  [id(), withApproval, id()],
-);
-await go(adm.page, `/admin/projects/${withApproval}`);
-const rera = adm.page.locator('[data-approval-kind="RERA"]');
-check(
-  "staff are told there is no certificate, and that the number is enough",
-  (await rera.innerText()).includes(
-    "No certificate attached. You can still verify it by its number.",
-  ),
-);
-await rera.getByRole("button", { name: "Verify" }).click();
-await adm.page.waitForURL(/saved=/);
-check(
-  "verifying it works with no certificate",
-  (await text(adm.page)).includes("Approval verified") &&
-    (
-      await sql(
-        `SELECT verified, "storageKey" FROM "ProjectApproval" WHERE "projectId" = $1 AND kind = 'RERA'`,
-        [withApproval],
-      )
-    )[0].verified === true,
-);
-const tncp = adm.page.locator('[data-approval-kind="TNCP"]');
-await tncp.getByRole("button", { name: "Verify" }).click();
-await adm.page.waitForURL(/error=/);
-check(
-  "an approval with no number still cannot be verified",
-  (await text(adm.page)).includes("needs its number") &&
-    (
-      await sql(`SELECT verified FROM "ProjectApproval" WHERE "projectId" = $1 AND kind = 'TNCP'`, [
-        withApproval,
-      ])
-    )[0].verified === false,
-);
-
 section("3. Buyers can find it straight away");
 await go(visitor.page, "/projects?q=Free+Layout");
 check(

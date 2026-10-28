@@ -27,7 +27,7 @@ const verifySchema = z.object({
   note: z.string().trim().max(1000).optional(),
 });
 
-/** Mark an approval as checked (by its number; the certificate file is optional), or send it back with a reason. */
+/** Mark an approval as checked against its certificate, or send it back with a reason. */
 export async function verifyApproval(formData: FormData) {
   const admin = await requireUser({ returnTo: "/admin/projects", roles: ["ADMIN"] });
   const parsed = verifySchema.safeParse({
@@ -48,10 +48,10 @@ export async function verifyApproval(formData: FormData) {
   const db = getDb();
   const approval = await db.projectApproval.findFirst({ where: { id: approvalId, projectId } });
   if (!approval) back(projectId, { error: "That approval no longer exists." });
-  // The number is what is checked (against the authority's register). The certificate file is
-  // helpful but optional: staff may verify an approval whose builder has not attached one.
-  if (decision === "verify" && !approval.number) {
-    back(projectId, { error: "An approval needs its number before it can be verified." });
+  if (decision === "verify" && (!approval.number || !approval.storageKey)) {
+    back(projectId, {
+      error: "Verify only after the builder has entered the number and attached the certificate.",
+    });
   }
 
   await db.$transaction(async (tx) => {
