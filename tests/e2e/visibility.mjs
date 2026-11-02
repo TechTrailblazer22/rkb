@@ -66,8 +66,16 @@ const id = () => randomUUID().replace(/-/g, "");
 const browser = await chromium.launch({ channel: "msedge" });
 const DESKTOP = { width: 1280, height: 900 };
 const PHONE = { width: 390, height: 844 };
-async function open(user, viewport = DESKTOP) {
-  const context = await browser.newContext({ viewport });
+const CHROME =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+async function open(user, viewport = DESKTOP, extra = null) {
+  // A headless browser announces itself as one and the visit counters ignore those, so the tests
+  // present an ordinary browser's name.
+  const context = await browser.newContext({
+    viewport,
+    userAgent: CHROME,
+    ...(extra ?? {}),
+  });
   if (user) await context.addCookies([await cookieFor(user)]);
   return { context, page: await context.newPage() };
 }
@@ -118,7 +126,7 @@ async function company(name, slug, owner, state = "VERIFIED") {
 }
 const cA = await company("Alpha Builders", "alpha", people.ownerA);
 const cB = await company("Beta Builders", "beta", people.ownerB);
-const cE = await company("Empty Builders", "empty", people.empty);
+await company("Empty Builders", "empty", people.empty);
 const cSuspended = await company(
   "Suspended Builders",
   "suspended",
@@ -547,6 +555,163 @@ check(
 );
 
 // =======================================================================================
+section("5d. Anonymous visits to the whole site are counted");
+const siteSum = async (event) =>
+  Number(
+    (
+      await sql(`SELECT COALESCE(SUM(count), 0) AS n FROM "SiteDailyStat" WHERE event = $1`, [
+        event,
+      ])
+    )[0].n,
+  );
+const siteBy = async (event, column, value) =>
+  Number(
+    (
+      await sql(
+        `SELECT COALESCE(SUM(count), 0) AS n FROM "SiteDailyStat" WHERE event = $1 AND ${column} = $2`,
+        [event, value],
+      )
+    )[0].n,
+  );
+const quiet = () => new Promise((r) => setTimeout(r, 1200));
+const visitsBefore = await siteSum("visit");
+const pagesBefore = await siteSum("page");
+const walker = await open(null);
+await go(walker.page, "/");
+await go(walker.page, "/projects");
+await go(walker.page, `/project/${live.slug}`);
+await go(walker.page, "/");
+await quiet();
+check(
+  "a session that opens four pages counts as one visit",
+  (await siteSum("visit")) === visitsBefore + 1,
+  `${visitsBefore} -> ${await siteSum("visit")}`,
+);
+check(
+  "and reaches three kinds of page, each once (home twice is still once)",
+  (await siteSum("page")) === pagesBefore + 3,
+  `${pagesBefore} -> ${await siteSum("page")}`,
+);
+check(
+  "the visit is filed under the page it began on",
+  (await siteBy("visit", "page", "home")) >= 1,
+);
+const searchBefore = await siteBy("visit", "source", "search_engine");
+const fromGoogle = await browser.newContext({
+  viewport: DESKTOP,
+  userAgent: CHROME,
+  extraHTTPHeaders: { Referer: "https://www.google.com/search?q=plots" },
+});
+const gp = await fromGoogle.newPage();
+await gp.goto(baseUrl + "/", { referer: "https://www.google.com/search?q=plots" });
+await settle(gp);
+await quiet();
+check(
+  "a visit that came from a search engine is filed as one",
+  (await siteBy("visit", "source", "search_engine")) === searchBefore + 1,
+);
+check(
+  "no address or search words were kept anywhere",
+  Number(
+    (
+      await sql(
+        `SELECT count(*) AS n FROM "SiteDailyStat" WHERE source NOT IN ('direct','search_engine','social','other')`,
+      )
+    )[0].n,
+  ) === 0,
+);
+await fromGoogle.close();
+
+const before = await siteSum("visit");
+const dnt = await browser.newContext({ viewport: DESKTOP, userAgent: CHROME });
+await dnt.addInitScript(() => Object.defineProperty(navigator, "doNotTrack", { get: () => "1" }));
+const dp = await dnt.newPage();
+await go(dp, "/");
+await quiet();
+check("a browser that asks not to be tracked is not counted", (await siteSum("visit")) === before);
+await dnt.close();
+await go(adm.page, "/admin/usage");
+await quiet();
+check("the admin console is never counted", (await siteSum("visit")) === before);
+
+const beacon = (body, headers = {}) =>
+  fetch(`${baseUrl}/api/visit`, {
+    method: "POST",
+    body: JSON.stringify(body),
+    headers: {
+      "content-type": "application/json",
+      origin: new URL(baseUrl).origin,
+      "user-agent": CHROME,
+      ...headers,
+    },
+  });
+const good = { page: "home", source: "direct", newVisit: true, newPage: false };
+check(
+  "a crawler is answered quietly and not counted",
+  (await beacon(good, { "user-agent": "Googlebot/2.1" })).status === 204 &&
+    (await siteSum("visit")) === before,
+);
+check(
+  "a message from another website is refused",
+  (await beacon(good, { origin: "https://evil.example" })).status === 403,
+);
+check(
+  "with no origin it is refused",
+  (
+    await fetch(`${baseUrl}/api/visit`, {
+      method: "POST",
+      body: JSON.stringify(good),
+      headers: { "content-type": "application/json", "user-agent": CHROME },
+    })
+  ).status === 403,
+);
+check(
+  "a browser's do-not-track header is respected on the server too",
+  (await beacon(good, { dnt: "1" })).status === 204 && (await siteSum("visit")) === before,
+);
+check(
+  "made-up pages or sources are refused",
+  (await beacon({ ...good, page: "/secret/path" })).status === 400 &&
+    (await beacon({ ...good, source: "http://evil" })).status === 400,
+);
+check("only POST is allowed", (await fetch(`${baseUrl}/api/visit`)).status === 405);
+check(
+  "a good message counts once",
+  (await beacon(good)).status === 204 && (await siteSum("visit")) === before + 1,
+);
+
+await go(adm.page, "/admin/usage");
+const tile = async (key) =>
+  Number(
+    (await adm.page.locator(`[data-visits="${key}"] [data-cell="visits"]`).innerText()).replace(
+      /,/g,
+      "",
+    ),
+  );
+const todayVisits = Number(
+  (
+    await sql(
+      `SELECT COALESCE(SUM(count), 0) AS n FROM "SiteDailyStat" WHERE event = 'visit' AND day = (now() AT TIME ZONE 'Asia/Kolkata')::date`,
+    )
+  )[0].n,
+);
+check(
+  "the admin Usage page shows today's visits, the same as the database",
+  (await tile("today")) === todayVisits && todayVisits >= 3,
+  `${await tile("today")} vs ${todayVisits}`,
+);
+check("and thirty days is never smaller", (await tile("last30")) >= (await tile("today")));
+check(
+  "it lists where visits came from, and the page they began on",
+  (await adm.page.getByTestId("visit-sources").innerText()).includes("Typed the address") &&
+    (await adm.page.getByTestId("visit-entry-pages").innerText()).includes("Home page"),
+);
+check(
+  "and which kinds of page sessions reached",
+  (await adm.page.getByTestId("visit-reached").innerText()).includes("A project page"),
+);
+await walker.context.close();
+
 section("6. Nothing was charged");
 check(
   "the whole suite created no plan, order or invoice",

@@ -1,4 +1,5 @@
 import type { ApprovalKind } from "@/generated/prisma/enums";
+import { FORM_OVERHEAD_BYTES, readFormBody } from "@/lib/body";
 import { getDb } from "@/lib/db";
 import { createLimiter } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
@@ -43,16 +44,12 @@ export async function POST(
   if (!owned) return json({ error: "Project not found." }, 404);
   const { project, mode } = owned;
 
-  const declared = Number(request.headers.get("content-length") ?? 0);
-  if (declared > MAX_UPLOAD_BYTES + 64 * 1024)
+  const body = await readFormBody(request, MAX_UPLOAD_BYTES + FORM_OVERHEAD_BYTES);
+  if (body.status === "too-large")
     return json({ error: "That file is too large. The limit is 5 MB." }, 413);
-
-  let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
+  if (body.status !== "ok")
     return json({ error: "The upload could not be read. Please try again." }, 400);
-  }
+  const form = body.value;
   const kind = String(form.get("kind") ?? "");
   const file = form.get("file");
   if (!["PHOTO", "LAYOUT", "BROCHURE", "APPROVAL"].includes(kind))

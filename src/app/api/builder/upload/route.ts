@@ -1,4 +1,5 @@
 import { revalidateBuilderPages } from "@/lib/projects/revalidate";
+import { FORM_OVERHEAD_BYTES, readFormBody } from "@/lib/body";
 import { getDb } from "@/lib/db";
 import { createLimiter } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
@@ -41,18 +42,15 @@ export async function POST(request: Request) {
     return json({ error: "Only builder accounts can upload files." }, 403);
   }
 
-  // Cheap early refusal before reading the whole body.
-  const declared = Number(request.headers.get("content-length") ?? 0);
-  if (declared > MAX_UPLOAD_BYTES + 64 * 1024) {
+  // The limit is enforced while the body is read, not only from the declared length.
+  const body = await readFormBody(request, MAX_UPLOAD_BYTES + FORM_OVERHEAD_BYTES);
+  if (body.status === "too-large") {
     return json({ error: "That file is too large. The limit is 5 MB." }, 413);
   }
-
-  let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
+  if (body.status !== "ok") {
     return json({ error: "The upload could not be read. Please try again." }, 400);
   }
+  const form = body.value;
 
   const kind = String(form.get("kind") ?? "");
   const file = form.get("file");

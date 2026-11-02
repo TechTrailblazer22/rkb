@@ -29,9 +29,10 @@ Written before starting, so every decision is on record. Status is kept at the e
 
 ## Phase 7: plans and entitlements
 
-**Model.** `Subscription` (one per company): plan, status (`ACTIVE`, `CANCELLED` meaning ends at the
-period end, `EXPIRED`), source (`MANUAL`, `GATEWAY`, `COMP`), period start and end, interval
-(monthly or annual), pending downgrade. `Invoice` and `InvoiceCounter` (numbers like
+**Model.** `Subscription` (one per company): plan, status (`ACTIVE` or `EXPIRED`), a
+`cancelAtPeriodEnd` flag (a cancelled company stays `ACTIVE` and keeps its plan until the period
+ends; there is no separate cancelled status), source (`MANUAL`, `GATEWAY`, `COMP`), period start and
+end, interval (monthly or annual), pending downgrade. `Invoice` and `InvoiceCounter` (numbers like
 `RKB/2026-27/0001`). `TeamInvite`. `FeaturedDay`. `Project.pauseReason` so a project paused because
 the plan lapsed resumes by itself when the plan returns, while one paused by an admin or for an
 expired approval does not.

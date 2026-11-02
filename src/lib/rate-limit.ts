@@ -34,7 +34,35 @@ export function createLimiter(options: {
   };
 }
 
-/** The caller's address as the proxy reports it, or a shared bucket when there is none. */
-export function clientAddress(headers: Headers): string {
-  return (headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+/**
+ * How many proxies in front of the app add their own entry to X-Forwarded-For (TRUSTED_PROXY_HOPS,
+ * default 1: the host's load balancer). A whole number of at least 1; anything else means 1.
+ */
+export function trustedProxyHops(raw: string | undefined = process.env.TRUSTED_PROXY_HOPS): number {
+  const hops = Number(raw);
+  return Number.isInteger(hops) && hops >= 1 ? hops : 1;
+}
+
+/**
+ * The caller's address, or a shared bucket when there is none.
+ *
+ * X-Forwarded-For is a list that every proxy *appends* to; a client can send its own value, which
+ * then sits at the front. So the left-most entry is whatever the caller chose to write, and trusting
+ * it lets one machine dodge every limit by changing it on each request. The entries the trusted
+ * proxies wrote are at the right-hand end, so count from there: with one trusted proxy the address
+ * is the last entry, with two it is the second from last, and so on.
+ *
+ * If the count is too small the result is a proxy's own address, so people share a bucket and are
+ * limited early (annoying, but safe). If it is too large it picks a value the caller wrote, which is
+ * the bypass this guards against, so raise TRUSTED_PROXY_HOPS only after checking (docs/OPERATIONS.md).
+ */
+export function clientAddress(headers: Headers, hops: number = trustedProxyHops()): string {
+  const entries = (headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (entries.length === 0) return "unknown";
+  // Fewer entries than trusted hops means the request did not come through the whole chain; the
+  // left-most entry is then the only one there is.
+  return entries[Math.max(0, entries.length - hops)].slice(0, 64);
 }

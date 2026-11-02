@@ -181,7 +181,7 @@ const g3 = await project(c3.builderId, "growth-three", "Growth Three");
 const c4 = await company("Tiny Builders", "tiny-builders", people.owner4, "STARTER");
 const p4 = await project(c4.builderId, "tiny-one", "Tiny One");
 const cp = await company("Premier Estates", "premier-estates", people.premier, "PREMIER");
-const pp = await project(cp.builderId, "premier-one", "Premier One");
+await project(cp.builderId, "premier-one", "Premier One");
 
 // a buyer account for the person who will be invited, and one for a stranger
 for (const user of [people.teammate, people.stranger, people.buyer]) {

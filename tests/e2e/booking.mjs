@@ -197,7 +197,7 @@ async function project(builderId, slug, name, token = 25000) {
 const cA = await company("Alpha Builders", "alpha", people.ownerA, "acc_alpha123");
 const cB = await company("Beta Builders", "beta", people.ownerB, null);
 const A = await project(cA, "alpha-one", "Alpha One");
-const B = await project(cB, "beta-one", "Beta One");
+await project(cB, "beta-one", "Beta One");
 const buyerRow = async (user) =>
   (await sql(`SELECT id FROM "User" WHERE email = $1`, [user.email]))[0].id;
 for (const user of [people.buyer1, people.buyer2, people.buyer3]) {

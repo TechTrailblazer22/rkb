@@ -942,3 +942,18 @@ model UserActivity {
   @@id([userId, day, mode])
   @@index([day, mode])
 }
+
+// Anonymous, site-wide visit counters: how many browser sessions came, where they came from and which
+// kinds of page they reached. Counters only (one row per day, event, page kind and source), so there
+// is nothing that identifies a person or a device. `event` is "visit" (a session's first page, counted
+// under the kind of page it entered on) or "page" (a session reached this kind of page, counted once).
+model SiteDailyStat {
+  day    DateTime @db.Date
+  event  String
+  page   String
+  source String
+  count  Int      @default(0)
+
+  @@id([day, event, page, source])
+  @@index([day])
+}

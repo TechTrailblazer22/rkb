@@ -29,6 +29,11 @@ services:
       # The secret the scheduler (cron-job.org) sends to /api/cron/*. See docs/LEADS.md.
       - key: CRON_SECRET
         generateValue: true
+      # How many proxies append to X-Forwarded-For before the request reaches the app. The rate limits
+      # read the address from the right-hand end of that header. Verify after deploying with
+      # `node scripts/check-rate-limit.mjs <site url>` (docs/OPERATIONS.md).
+      - key: TRUSTED_PROXY_HOPS
+        value: 1
       # Billing. Leave BILLING_DRIVER empty until a Razorpay account is ready. See docs/BILLING.md.
       - key: BILLING_DRIVER
         sync: false

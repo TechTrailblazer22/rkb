@@ -47,6 +47,24 @@ holding plots 20/hour per buyer, reviews 15/hour. Enquiries have their own datab
 (5 a day per buyer) and a honeypot field. Gateway webhooks are protected by their signature, not by
 a limit.
 
+**Which address is counted.** The limits for visitors who are not logged in are per address, taken
+from `X-Forwarded-For`. That header is a list every proxy *appends* to, and a caller may write its
+own value, which then sits at the front, so the left-most entry is not trustworthy (taking it let one
+machine dodge every limit by changing it on each request). `clientAddress()` counts
+`TRUSTED_PROXY_HOPS` entries from the right instead (default 1, for Render's load balancer). Too small
+a number limits people who share a proxy together (safe, but unfriendly); too large a number trusts
+what the caller wrote. After deploying, run `node scripts/check-rate-limit.mjs <site url>`
+(`docs/OPERATIONS.md`).
+
+**Request size.** Every route that reads a body (the payment webhook, uploads, the plot import, the
+progress update, and the three small JSON beacons) reads it through `lib/body.ts`, which counts the
+bytes as they arrive and stops at the limit. Checking `Content-Length` alone is not enough: a body
+sent in chunks has none, and a client can understate it.
+
+**The beacons are not tamper-proof.** `/api/track` and `/api/visit` refuse browsers on other sites
+(the `Origin` must be this site), but a script can set that header itself. The per-address limit
+bounds how fast one machine can inflate the counts; they measure real traffic well, not adversarially.
+
 ## Money
 
 Documented in `docs/BILLING.md` and `docs/BOOKING.md`: amounts checked against the order, signatures
@@ -76,6 +94,16 @@ logged-in people only; visitors who are not logged in are not counted (the per-p
 a builder's analytics cover them). The rows are removed when an account is deleted. Say so in the
 Privacy Notice.
 
+**Anonymous visits** (the first section of the Usage page) count browser sessions for the whole site,
+logged in or not, in `SiteDailyStat`: plain counters per day, kind of page (home, search, project,
+builder, marketing, login, account area) and one-word source (direct, search engine, social, other).
+There is no cookie and no identifier: the browser only remembers in `sessionStorage` (cleared when the
+tab closes) that it already counted. Crawlers, the admin console, and browsers that send Do Not Track
+or Global Privacy Control are not counted. A "visit" is a session, so a person returning on another
+day counts again; unique visitors would need an identifier and consent, and are deliberately not
+built. `/api/visit` accepts only our own pages, limits each address, and refuses anything but the
+fixed page and source words.
+
 ## Dependencies
 
 `npm audit` reported 0 vulnerabilities at the time of the final audit. Re-run it before each deploy;
@@ -91,7 +119,8 @@ compare it in constant time. Rotate a secret by changing it in Render and redepl
 ## Known limits and things to do before launch
 
 - No third-party penetration test has been done. Consider one before real money moves.
-- Rate limits are per process (above). The session lifetime is Auth0's.
+- Rate limits are per process and start again after a restart or a free-tier sleep (above). The
+  session lifetime is Auth0's.
 - A malicious company could still write misleading text; the controls are staff review of
   verification, projects and reviews, not code.
 - Uploaded files are checked by content (JPG, PNG, WebP, PDF) and size, but are not scanned for

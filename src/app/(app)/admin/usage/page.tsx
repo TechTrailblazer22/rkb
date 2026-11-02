@@ -2,6 +2,8 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { requireUser } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { usageSummary } from "@/lib/usage/activity";
+import { PAGE_LABELS, SOURCE_LABELS } from "@/lib/usage/site-kinds";
+import { siteVisitSummary } from "@/lib/usage/site-visits";
 
 export const metadata = { title: "Usage" };
 
@@ -14,7 +16,7 @@ const label = (iso: string) =>
 
 export default async function AdminUsagePage() {
   await requireUser({ returnTo: "/admin/usage", roles: ["ADMIN"] });
-  const usage = await usageSummary(getDb());
+  const [usage, site] = await Promise.all([usageSummary(getDb()), siteVisitSummary(getDb())]);
   const { registered, active } = usage;
 
   const periods: [string, keyof typeof active][] = [
@@ -38,11 +40,84 @@ export default async function AdminUsagePage() {
       <AdminNav current="usage" />
 
       <p className="text-sm text-slate-600">
-        How many different logged-in people used the site, through their buyer account and through
-        their builder account. A person is counted once a day per account, so someone who switches
-        between the two counts in both. Visitors who are not logged in are not counted here; their
-        views of each project are in the builder&apos;s own analytics.
+        The first section counts anonymous visits (anyone, logged in or not). The sections after it
+        count different logged-in people, through their buyer account and through their builder
+        account: a person is counted once a day per account, so someone who switches between the two
+        counts in both. A builder&apos;s own analytics show the views of each of their projects.
       </p>
+
+      <section
+        className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"
+        data-testid="site-visits"
+      >
+        <h2 className="text-lg font-bold">Visits to the site, logged in or not</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Anonymous counts of visits, where one visit is one browser session (a person coming back
+          another day counts again). Nothing identifies anyone: only the kind of page and where the
+          visit came from are counted. Crawlers, the admin console, and browsers that ask not to be
+          tracked are left out.
+        </p>
+        <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+          {(
+            [
+              ["Today", site.visits.today, "today"],
+              ["Last 7 days", site.visits.last7, "last7"],
+              ["Last 30 days", site.visits.last30, "last30"],
+            ] as const
+          ).map(([name, value, key]) => (
+            <div key={key} className="rounded-xl bg-slate-50 p-4" data-visits={key}>
+              <dt className="text-sm text-slate-600">{name}</dt>
+              <dd className="text-2xl font-extrabold" data-cell="visits">
+                {value.toLocaleString("en-IN")}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {site.visits.last30 === 0 ? (
+          <p className="mt-4 text-sm text-slate-600" data-testid="no-visits">
+            No visits have been counted yet. They start appearing as people open the site.
+          </p>
+        ) : (
+          <div className="mt-5 grid gap-6 lg:grid-cols-3">
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold">Where visits came from (30 days)</h3>
+              <ul className="mt-2 divide-y divide-slate-100 text-sm" data-testid="visit-sources">
+                {site.bySource.map((s) => (
+                  <li key={s.source} className="flex justify-between gap-3 py-1.5">
+                    <span>{SOURCE_LABELS[s.source]}</span>
+                    <span className="font-semibold">{s.visits.toLocaleString("en-IN")}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold">The page a visit started on (30 days)</h3>
+              <ul
+                className="mt-2 divide-y divide-slate-100 text-sm"
+                data-testid="visit-entry-pages"
+              >
+                {site.entryPages.map((p) => (
+                  <li key={p.page} className="flex justify-between gap-3 py-1.5">
+                    <span>{PAGE_LABELS[p.page]}</span>
+                    <span className="font-semibold">{p.visits.toLocaleString("en-IN")}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold">Visits that reached each kind of page (30 days)</h3>
+              <ul className="mt-2 divide-y divide-slate-100 text-sm" data-testid="visit-reached">
+                {site.reached.map((p) => (
+                  <li key={p.page} className="flex justify-between gap-3 py-1.5">
+                    <span>{PAGE_LABELS[p.page]}</span>
+                    <span className="font-semibold">{p.sessions.toLocaleString("en-IN")}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="grid gap-4 sm:grid-cols-3" data-testid="registered">
         {[
@@ -211,8 +286,9 @@ export default async function AdminUsagePage() {
       </section>
 
       <p className="text-xs text-slate-500">
-        Counting started when this page was added, so earlier days show zero. Each person is stored
-        as one row per day per account: no page, address or device is kept.
+        Counting started when this page was added, so earlier days show zero. Logged-in people are
+        stored as one row per day per account, and visits as plain counters: no page, address or
+        device is kept.
       </p>
     </div>
   );

@@ -1,18 +1,23 @@
 import { z } from "zod";
 import { isBot, parseBrowserEvent, parseSource, recordStat } from "@/lib/analytics/stats";
+import { readJsonBody } from "@/lib/body";
 import { getDb } from "@/lib/db";
 import { clientAddress, createLimiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-// The page-analytics beacon. It counts; it identifies nobody. Only our own pages may call it
-// (the Origin must be this site), crawlers are ignored, and each address is limited, so the numbers
-// cannot be inflated by a script on another site or by a loop on one machine.
+// The page-analytics beacon. It counts; it identifies nobody. Browsers on other sites are refused
+// (the Origin must be this site), crawlers are ignored, each address is limited, and the body size is
+// capped, so the numbers cannot be inflated by a page on another site, and a loop on one machine is
+// slowed to the per-address limit. A script that sets its own Origin header can still get through up
+// to that limit, so treat the numbers as a good measure of real traffic, not as tamper-proof.
 const body = z.object({
   slug: z.string().min(1).max(120),
   event: z.string().max(20),
   source: z.string().max(20).optional(),
 });
+
+const MAX_BODY_BYTES = 2048;
 
 // 90 events a minute from one address is far more than a person generates.
 const limiter = createLimiter({ max: 90, windowMs: 60_000 });
@@ -40,7 +45,9 @@ export async function POST(request: Request) {
 
   if (limiter.hit(clientAddress(request.headers))) return new Response(null, { status: 429 });
 
-  const parsed = body.safeParse(await request.json().catch(() => null));
+  const raw = await readJsonBody(request, MAX_BODY_BYTES);
+  if (raw.status === "too-large") return new Response(null, { status: 413 });
+  const parsed = body.safeParse(raw.status === "ok" ? raw.value : null);
   const event = parsed.success ? parseBrowserEvent(parsed.data.event) : null;
   if (!parsed.success || !event) return new Response(null, { status: 400 });
 

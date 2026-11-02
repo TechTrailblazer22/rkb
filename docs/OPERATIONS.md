@@ -44,6 +44,22 @@ job that throws answers 500 and says only "failed"; the detail is in the server 
 web service **sleeps after 15 minutes without traffic**: a cron call wakes it, but the first request
 is slow, and a five-minute booking job will keep it awake.
 
+## Knowing who is calling (TRUSTED_PROXY_HOPS)
+
+The per-address rate limits need the caller's real address. Render's proxy adds it to the end of the
+`X-Forwarded-For` header, after anything the caller wrote, so the app reads the header from the right
+(`TRUSTED_PROXY_HOPS`, default 1: see `docs/SECURITY.md`). Render does not document how many proxies
+sit in front of a service, so **check it once after the first deploy, and again if you put a CDN such
+as Cloudflare in front or move host:**
+
+1. `node scripts/check-rate-limit.mjs https://your-site.onrender.com`. It sends 80 requests with a
+   different made-up address each. **A 429 should appear after about 60.** If none does, the app is
+   reading a value the caller wrote: set `TRUSTED_PROXY_HOPS` one higher, redeploy, run it again.
+2. The script cannot tell "exactly right" from "one too few", where everyone shares the address of a
+   proxy and so share one limit. To rule that out: run the script from one network, and straight
+   afterwards open the site from a phone on mobile data. If the phone's first visit is also refused
+   (HTTP 429 on `/api/visit`, visible in the browser's network tab), set the number one higher.
+
 ## What was measured
 
 `scripts/load-test.mjs` (30 simultaneous visitors for 10 seconds per page, against a production build
@@ -93,3 +109,4 @@ When there is real traffic or money, the order of upgrades that matters most:
    unless their documents (`docs/BILLING.md`, `docs/BOOKING.md`) are satisfied.
 4. Deploy, then check `/api/health`, `/api/health/db`, log in, open a project page.
 5. Confirm the cron jobs hit their URLs and answer 200.
+6. Run `node scripts/check-rate-limit.mjs <site url>` and expect a 429 (see "Knowing who is calling").

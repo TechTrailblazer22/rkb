@@ -2,9 +2,12 @@ import { afterSettled } from "@/lib/billing/after-settle";
 import { billingConfig, providerFor } from "@/lib/billing/provider";
 import { afterBookingChange } from "@/lib/booking/after";
 import { processWebhook } from "@/lib/billing/webhook";
+import { readTextBody } from "@/lib/body";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+
+const MAX_WEBHOOK_BYTES = 256 * 1024;
 
 // Where the payment gateway tells us a payment happened. Nothing here trusts the caller: the
 // signature is checked against the raw body before anything is read (see lib/billing/webhook.ts),
@@ -19,11 +22,12 @@ export async function POST(request: Request) {
   }
   if (!provider) return Response.json({ received: false }, { status: 503 });
 
-  // Refuse absurd bodies before reading them. Real events are a few kilobytes.
-  const declared = Number(request.headers.get("content-length") ?? 0);
-  if (declared > 256 * 1024) return Response.json({ received: false }, { status: 413 });
-
-  const rawBody = await request.text();
+  // Real events are a few kilobytes. The limit is enforced while reading, so a body sent in chunks
+  // (no Content-Length) or one that understates its size cannot get past it.
+  const body = await readTextBody(request, MAX_WEBHOOK_BYTES);
+  if (body.status === "too-large") return Response.json({ received: false }, { status: 413 });
+  if (body.status !== "ok") return Response.json({ received: false }, { status: 400 });
+  const rawBody = body.value;
   const db = getDb();
   const outcome = await processWebhook(db, provider, {
     rawBody,

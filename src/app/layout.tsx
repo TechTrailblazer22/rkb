@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { SiteBeacon } from "@/components/site/site-beacon";
 import { MODE_COOKIE } from "@/lib/auth/mode";
 import { getSiteUrl } from "@/lib/site";
 import "./globals.css";
@@ -41,7 +42,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             See data-for in globals.css and docs/LOGIN-ROLES.md. */}
         <script dangerouslySetInnerHTML={{ __html: MODE_SCRIPT }} />
       </head>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        {children}
+        <SiteBeacon />
+      </body>
     </html>
   );
 }

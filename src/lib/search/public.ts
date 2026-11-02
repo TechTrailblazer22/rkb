@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { getDb } from "@/lib/db";
 import { slugify } from "@/lib/builders/slug";
@@ -113,7 +114,15 @@ export type CityEntry = { name: string; slug: string; count: number };
  * Cities that have at least one public project. A city is spelled however builders typed it, so
  * "Coimbatore" and "coimbatore" are one entry (counted together, shown in the most common spelling).
  */
-export async function listCities(db: PrismaClient = getDb()): Promise<CityEntry[]> {
+export function listCities(db?: PrismaClient): Promise<CityEntry[]> {
+  // With the app's own connection, a page and its metadata (and the header and footer) all ask for
+  // the same list in one request: answer once. An explicit client (tests, the sitemap) is not cached.
+  return db ? loadCities(db) : listCitiesOnce();
+}
+
+const listCitiesOnce = cache(() => loadCities(getDb()));
+
+async function loadCities(db: PrismaClient): Promise<CityEntry[]> {
   const rows = await db.project.groupBy({
     by: ["city"],
     where: { ...PUBLIC_PROJECT, city: { not: null } },

@@ -424,6 +424,12 @@ await buyer.page
   .locator("#review-body")
   .fill("<b>Great</b> team. They answered every question and the plot matched the brochure.");
 await act(buyer.page, () => buyer.page.getByRole("button", { name: "Send my review" }).click());
+// The click returns before the redirect has rendered, so wait for the confirmation to appear
+// instead of counting it at that instant (this check failed once in two runs without the wait).
+await buyer.page
+  .getByTestId("review-saved")
+  .waitFor({ timeout: 10_000 })
+  .catch(() => {});
 check(
   "it is accepted and waits for staff",
   (await buyer.page.getByTestId("review-saved").count()) === 1 &&

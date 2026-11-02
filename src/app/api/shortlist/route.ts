@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { readJsonBody } from "@/lib/body";
 import { getDb } from "@/lib/db";
 import { getApiUser } from "@/lib/auth/session";
 import { createLimiter } from "@/lib/rate-limit";
 import { listShortlistIds, setShortlisted } from "@/lib/shortlist/service";
 
+const MAX_BODY_BYTES = 2048;
 const limiter = createLimiter({ max: 120, windowMs: 60_000 });
 
 export const dynamic = "force-dynamic";
@@ -47,7 +49,9 @@ export async function POST(request: Request) {
   if (limiter.hit(auth.user.id))
     return json({ error: "Too many requests. Please slow down." }, 429);
 
-  const parsed = body.safeParse(await request.json().catch(() => null));
+  const raw = await readJsonBody(request, MAX_BODY_BYTES);
+  if (raw.status === "too-large") return json({ error: "Request too large." }, 413);
+  const parsed = body.safeParse(raw.status === "ok" ? raw.value : null);
   if (!parsed.success) return json({ error: "Invalid request." }, 400);
 
   const result = await setShortlisted(getDb(), { userId: auth.user.id, ...parsed.data });
